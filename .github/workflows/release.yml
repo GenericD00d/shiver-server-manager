@@ -1,0 +1,63 @@
+name: Release
+
+# Push a tag like v1.0.0 to publish .deb packages for amd64 and arm64.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  NFPM_VERSION: v2.48.0
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Built on the oldest supported base (24.04), natively per
+          # architecture, since PAM needs cgo.
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
+      - run: go test ./...
+      - run: sudo visudo -cf packaging/sudoers
+      - name: Build
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" ./cmd/shiver-server-manager
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION
+          mkdir -p dist
+          ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist/*.deb
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum *.deb > SHA256SUMS
+          cat SHA256SUMS
+          notes=$(awk -v v="## ${GITHUB_REF_NAME#v}" '$0 ~ "^## " {p = index($0, v) == 1; next} p' ../CHANGELOG.md)
+          gh release create "$GITHUB_REF_NAME" *.deb SHA256SUMS --title "$GITHUB_REF_NAME" --notes "${notes:-See CHANGELOG.md}"

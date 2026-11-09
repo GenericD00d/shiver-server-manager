@@ -1,0 +1,10 @@
+# Managed by shiver-server-manager
+/var/log/shiver-server-manager.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0600 root root
+}

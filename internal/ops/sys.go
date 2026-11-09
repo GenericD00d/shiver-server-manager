@@ -129,6 +129,7 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		ManagerVersion: strings.TrimPrefix(userAgent, paths.Cmd+"/"),
 		FirstStart:     sharkord.FirstStart,
 		WaitHealthy:    sharkord.WaitHealthy,
+		Healthz:        sharkord.Healthz,
 		PublicIPv4: func(ctx context.Context) (string, error) {
 			return netinfo.PublicIPv4(ctx, nil, netinfo.IPv4Sources)
 		},

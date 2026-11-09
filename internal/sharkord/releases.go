@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
+	"github.com/GenericD00d/shiver-server-manager/internal/httpx"
 )
 
 // Client talks to GitHub for Sharkord releases.
@@ -78,7 +79,7 @@ func (c *Client) Releases(ctx context.Context) ([]Release, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", c.UserAgent)
-	resp, err := c.HTTP.Do(req)
+	resp, err := httpx.Do(ctx, c.HTTP, func() (*http.Request, error) { return req, nil })
 	if err != nil {
 		return nil, fmt.Errorf("list Sharkord releases: %w", err)
 	}
@@ -191,7 +192,7 @@ func (c *Client) Install(ctx context.Context, optDir, version string) error {
 		return err
 	}
 	req.Header.Set("User-Agent", c.UserAgent)
-	resp, err := c.HTTP.Do(req)
+	resp, err := httpx.Do(ctx, c.HTTP, func() (*http.Request, error) { return req, nil })
 	if err != nil {
 		return fmt.Errorf("download %s: %w", asset, err)
 	}
@@ -228,7 +229,7 @@ func (c *Client) get(ctx context.Context, url string, limit int64) ([]byte, erro
 		return nil, err
 	}
 	req.Header.Set("User-Agent", c.UserAgent)
-	resp, err := c.HTTP.Do(req)
+	resp, err := httpx.Do(ctx, c.HTTP, func() (*http.Request, error) { return req, nil })
 	if err != nil {
 		return nil, err
 	}

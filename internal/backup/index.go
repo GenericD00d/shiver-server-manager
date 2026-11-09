@@ -95,7 +95,22 @@ func Vacuum(src, dst string) error {
 	}
 	defer db.Close()
 	if _, err := db.Exec(`VACUUM INTO ?`, dst); err != nil {
-		return fmt.Errorf("copy the database: %w", err)
+		return fmt.Errorf("copy the database (as uid %d; %s): %w", os.Getuid(), describe(src, src+"-wal", src+"-shm", filepath.Dir(src), filepath.Dir(dst)), err)
 	}
 	return nil
+}
+
+// describe lists paths with their owner and mode, for error messages.
+func describe(paths ...string) string {
+	var parts []string
+	for _, p := range paths {
+		fi, err := os.Lstat(p)
+		if err != nil {
+			parts = append(parts, p+": missing")
+			continue
+		}
+		uid, gid, _ := fsutil.OwnerOf(p)
+		parts = append(parts, fmt.Sprintf("%s: %d:%d %v", p, uid, gid, fi.Mode()))
+	}
+	return strings.Join(parts, ", ")
 }

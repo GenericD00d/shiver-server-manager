@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
+	"github.com/GenericD00d/shiver-server-manager/internal/httpx"
 )
 
 // ID is Shiver's plugin ID.
@@ -99,7 +100,7 @@ func (c *Client) Latest(ctx context.Context) (Release, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", c.UserAgent)
-	resp, err := c.HTTP.Do(req)
+	resp, err := httpx.Do(ctx, c.HTTP, func() (*http.Request, error) { return req, nil })
 	if err != nil {
 		return r, fmt.Errorf("look up the latest Shiver release: %w", err)
 	}
@@ -143,7 +144,7 @@ func (c *Client) get(ctx context.Context, url string, limit int64) ([]byte, erro
 		return nil, err
 	}
 	req.Header.Set("User-Agent", c.UserAgent)
-	resp, err := c.HTTP.Do(req)
+	resp, err := httpx.Do(ctx, c.HTTP, func() (*http.Request, error) { return req, nil })
 	if err != nil {
 		return nil, err
 	}
