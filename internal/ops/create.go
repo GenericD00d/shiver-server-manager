@@ -272,7 +272,7 @@ func (s *Sys) writeFiles(ctx context.Context, id string) error {
 		return err
 	}
 	for p, data := range files {
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		if err := fsutil.MkdirAllMode(filepath.Dir(p), 0o755); err != nil {
 			return err
 		}
 		mode := os.FileMode(0o644)
@@ -284,7 +284,7 @@ func (s *Sys) writeFiles(ctx context.Context, id string) error {
 		}
 	}
 	inst := s.St.Instances[id]
-	if err := os.MkdirAll(s.Paths.VersionLinkDir, 0o755); err != nil {
+	if err := fsutil.MkdirAllMode(s.Paths.VersionLinkDir, 0o755); err != nil {
 		return err
 	}
 	if err := fsutil.SymlinkAtomic(sharkord.BinaryPath(s.Paths.OptDir, inst.SharkordVersion), s.linkPath(id)); err != nil {

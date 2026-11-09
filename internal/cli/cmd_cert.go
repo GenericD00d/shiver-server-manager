@@ -104,6 +104,6 @@ func (a *App) firewallCmd() *cobra.Command {
 		},
 	}
 	c := &cobra.Command{Use: "firewall", Short: "Firewall rules", Args: cobra.NoArgs}
-	c.AddCommand(status, stub("repair", "Add missing rules and remove leftovers", cobra.NoArgs))
+	c.AddCommand(status, a.firewallRepairCmd())
 	return c
 }

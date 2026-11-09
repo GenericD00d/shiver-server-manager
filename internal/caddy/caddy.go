@@ -151,7 +151,7 @@ func (c *Caddy) Apply(ctx context.Context, files map[string][]byte, restart bool
 			}
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		if err := fsutil.MkdirAllMode(filepath.Dir(p), 0o755); err != nil {
 			restore()
 			return err
 		}

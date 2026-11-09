@@ -84,8 +84,11 @@ type Instance struct {
 	WebRTCPort      int               `json:"webrtcPort"`
 	Encrypted       bool              `json:"encrypted"`
 	Settings        map[string]string `json:"settings,omitempty"`
-	CreatedAt       time.Time         `json:"createdAt"`
-	Operation       *Operation        `json:"operation"`
+	// Stopped is set when an admin stops the instance, so repair and the
+	// health check don't start it again.
+	Stopped   bool       `json:"stopped,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	Operation *Operation `json:"operation"`
 }
 
 type State struct {

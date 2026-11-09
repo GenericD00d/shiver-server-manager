@@ -335,3 +335,24 @@ func decrypt(enc []byte, id age.Identity) ([]byte, error) {
 	}
 	return io.ReadAll(r)
 }
+
+// HasAnySecret reports whether a server has anything in the vault.
+func (v *Vault) HasAnySecret(id string) bool {
+	if validate.InstanceID(id) != nil {
+		return false
+	}
+	entries, err := os.ReadDir(v.path(secretsDir, id))
+	return err == nil && len(entries) > 0
+}
+
+// SecretIDs lists the servers that have secrets in the vault.
+func (v *Vault) SecretIDs() []string {
+	entries, _ := os.ReadDir(v.path(secretsDir))
+	var ids []string
+	for _, e := range entries {
+		if e.IsDir() && validate.InstanceID(e.Name()) == nil {
+			ids = append(ids, e.Name())
+		}
+	}
+	return ids
+}

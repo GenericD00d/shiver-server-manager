@@ -72,6 +72,9 @@ type Sys struct {
 	FirewallFor func(name string) firewall.Firewall
 	DNSCheck    func(ctx context.Context, domain string) netinfo.DNSResult
 	CertWait    time.Duration // how long create waits for a certificate
+	// EraseContainer locks an encrypted instance and wipes its key slots
+	// (set once encrypted data folders are built).
+	EraseContainer func(ctx context.Context, id string) error
 
 	FirstStart  func(context.Context, sharkord.FirstStartOpts) (string, error)
 	WaitHealthy func(ctx context.Context, port int, timeout time.Duration) error

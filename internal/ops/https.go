@@ -169,7 +169,7 @@ func (s *Sys) RetryCert(ctx context.Context, id string) (netinfo.DNSResult, erro
 		return netinfo.DNSResult{}, err
 	}
 	var r netinfo.DNSResult
-	if inst.TLS == state.TLSLetsEncrypt && s.DNSCheck != nil {
+	if inst.TLS == state.TLSLetsEncrypt && s.St.Settings.ACMECA == "" && s.DNSCheck != nil {
 		r = s.DNSCheck(ctx, inst.Domain)
 		if !r.OK {
 			return r, fmt.Errorf("%s", r.Problem)

@@ -176,11 +176,9 @@ func (c *Client) Install(ctx context.Context, optDir, version string) error {
 	}
 
 	dir := filepath.Dir(dst)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := fsutil.MkdirAllMode(dir, 0o755); err != nil {
 		return err
 	}
-	_ = os.Chmod(filepath.Dir(dir), 0o755)
-	_ = os.Chmod(dir, 0o755)
 	tmp, err := os.CreateTemp(dir, ".sharkord-download-*")
 	if err != nil {
 		return err

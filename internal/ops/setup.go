@@ -220,7 +220,7 @@ func (s *Sys) PlanCaddy() (CaddyPlan, error) {
 
 // ApplyCaddy writes the plan, validates and reloads (or restarts).
 func (s *Sys) ApplyCaddy(ctx context.Context, plan CaddyPlan) error {
-	if err := os.MkdirAll(s.Caddy.SitesDir, 0o755); err != nil {
+	if err := fsutil.MkdirAllMode(s.Caddy.SitesDir, 0o755); err != nil {
 		return err
 	}
 	if caddy.FilesMatch(plan.Files) && !plan.Restart {

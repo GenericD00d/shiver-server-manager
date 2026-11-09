@@ -69,6 +69,9 @@ func (s *Sys) Start(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	if err := s.setStopped(id, false); err != nil {
+		return err
+	}
 	if err := s.Systemd.Start(ctx, systemd.Unit(id)); err != nil {
 		return err
 	}
@@ -79,12 +82,18 @@ func (s *Sys) Stop(ctx context.Context, id string) error {
 	if _, err := s.requireActive(id); err != nil {
 		return err
 	}
+	if err := s.setStopped(id, true); err != nil {
+		return err
+	}
 	return s.Systemd.Stop(ctx, systemd.Unit(id))
 }
 
 func (s *Sys) Restart(ctx context.Context, id string) error {
 	inst, err := s.requireActive(id)
 	if err != nil {
+		return err
+	}
+	if err := s.setStopped(id, false); err != nil {
 		return err
 	}
 	if err := s.Systemd.Restart(ctx, systemd.Unit(id)); err != nil {
@@ -211,4 +220,36 @@ func (s *Sys) Logs(ctx context.Context, id string, lines int) (string, error) {
 		return "", err
 	}
 	return s.Systemd.Logs(ctx, systemd.Unit(id), lines)
+}
+
+// ChangePublicIP saves a new public IPv4 address, rewrites every env file,
+// and restarts the instances one at a time, waiting for each to answer.
+// Sharkord reads the announced address only at startup.
+func (s *Sys) ChangePublicIP(ctx context.Context, ip string) error {
+	if s.St.Settings.PublicIPv4 == ip {
+		return nil
+	}
+	s.St.Settings.PublicIPv4 = ip
+	if err := s.Save(); err != nil {
+		return err
+	}
+	var errs []error
+	for _, id := range s.IDs() {
+		inst := s.St.Instances[id]
+		if inst.Operation != nil || inst.Status != state.StatusActive {
+			continue
+		}
+		if err := s.writeFiles(ctx, id); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", id, err))
+			continue
+		}
+		if st, err := s.Systemd.Status(ctx, systemd.Unit(id)); err == nil && st.Active == "active" {
+			if err := s.Restart(ctx, id); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", id, err))
+				continue
+			}
+		}
+		s.emit(Event{Instance: id, Op: "public-ip", Step: "restart", Status: "done", Detail: "now announces " + ip})
+	}
+	return errors.Join(errs...)
 }

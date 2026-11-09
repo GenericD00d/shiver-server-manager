@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -44,6 +45,7 @@ type setupFlags struct {
 	acmeCA     string
 	acmeCARoot string
 	noFirewall bool
+	publicIP   string
 }
 
 func (a *App) setupCmd() *cobra.Command {
@@ -81,6 +83,7 @@ func (a *App) setupCmd() *cobra.Command {
 	c.Flags().StringVar(&f.email, "email", "", "email address for Let's Encrypt expiry notices (optional)")
 	c.Flags().StringVar(&f.acmeCA, "acme-ca", "", "use this ACME server instead of Let's Encrypt (testing)")
 	c.Flags().StringVar(&f.acmeCARoot, "acme-ca-root", "", "root certificate of the --acme-ca server (testing)")
+	c.Flags().StringVar(&f.publicIP, "public-ip", "", "use this public IPv4 address instead of looking it up (\"auto\" to look it up again)")
 	c.Flags().BoolVar(&f.noFirewall, "no-firewall", false, "don't switch on ufw if no firewall is active")
 	_ = c.Flags().MarkHidden("acme-ca")
 	_ = c.Flags().MarkHidden("acme-ca-root")
@@ -126,7 +129,7 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 				return err
 			}
 			dst := filepath.Join(paths.CaddyGlobalDir, "acme-ca-root.pem")
-			if err := os.MkdirAll(paths.CaddyGlobalDir, 0o755); err != nil {
+			if err := fsutil.MkdirAllMode(paths.CaddyGlobalDir, 0o755); err != nil {
 				return err
 			}
 			if err := fsutil.WriteFileAtomic(dst, b, 0o644, nil); err != nil {
@@ -171,19 +174,32 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 		a.warn("The clock isn't synchronised (timedatectl). Certificates fail when the time is wrong; turn on NTP with: timedatectl set-ntp true")
 	}
 
+	switch f.publicIP {
+	case "":
+	case "auto":
+		st.Settings.FixedPublicIPv4 = false
+	default:
+		ip := net.ParseIP(f.publicIP).To4()
+		if ip == nil {
+			return usageErr("--public-ip %q isn't an IPv4 address", f.publicIP)
+		}
+		st.Settings.FixedPublicIPv4 = true
+		if err := s.ChangePublicIP(ctx, ip.String()); err != nil {
+			return err
+		}
+	}
 	if st.Settings.FixedPublicIPv4 {
 		a.ok("Public IPv4 address %s (set by hand)", st.Settings.PublicIPv4)
 	} else if ip, err := s.PublicIPv4(ctx); err != nil {
 		a.warn("Couldn't find the public IPv4 address: %v", err)
 	} else {
-		st.Settings.PublicIPv4 = ip
+		if err := s.ChangePublicIP(ctx, ip); err != nil {
+			return err
+		}
 		if slices.Contains(netinfo.LocalIPv4(), ip) {
 			a.ok("Public IPv4 address %s, on this machine (like a VPS)", ip)
 		} else {
 			a.ok("Public IPv4 address %s, behind a router or cloud NAT: the ports below must be forwarded or opened there", ip)
-		}
-		if err := s.Save(); err != nil {
-			return err
 		}
 	}
 

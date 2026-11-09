@@ -33,7 +33,7 @@ func (a *App) addCommands(root *cobra.Command) {
 	_ = move.MarkFlagRequired("to")
 
 	instance := a.instanceCmd()
-	instance.AddCommand(update, move, stub("delete <id>", "Delete a server and all its data", one))
+	instance.AddCommand(update, move, a.deleteCmd())
 
 	token := a.tokenCmd()
 
@@ -82,8 +82,7 @@ func (a *App) addCommands(root *cobra.Command) {
 	health := stub("health", "Run the health check", none)
 	health.Flags().Bool("unattended", false, "run from the timer: no login, no prompts")
 
-	repair := stub("repair", "Make the system match the records", none)
-	repair.Flags().Bool("dry-run", false, "only print what would change")
+	repair := a.repairCmd()
 
 	root.AddCommand(setup, instance, token, shiver, cert, backup, restore, export, imp,
 		storage, firewall, vault, admins, health, repair)

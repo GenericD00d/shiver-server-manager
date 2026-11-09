@@ -48,3 +48,23 @@ func Exists(path string) bool {
 	_, err := os.Lstat(path)
 	return err == nil
 }
+
+// MkdirAllMode creates path and any missing parents with exactly mode,
+// whatever the umask (the manager runs with 077).
+func MkdirAllMode(path string, mode os.FileMode) error {
+	if fi, err := os.Stat(path); err == nil {
+		if !fi.IsDir() {
+			return &os.PathError{Op: "mkdir", Path: path, Err: errors.New("not a folder")}
+		}
+		return nil
+	}
+	if parent := filepath.Dir(path); parent != path {
+		if err := MkdirAllMode(parent, mode); err != nil {
+			return err
+		}
+	}
+	if err := os.Mkdir(path, mode); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	return os.Chmod(path, mode)
+}

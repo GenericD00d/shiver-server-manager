@@ -1,0 +1,9 @@
+{
+  "name": "shiver-server-manager-voice-test",
+  "private": true,
+  "type": "module",
+  "description": "Two browsers join one voice channel and check audio arrives (guide: Testing, Voice end to end).",
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

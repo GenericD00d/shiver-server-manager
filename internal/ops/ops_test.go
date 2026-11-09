@@ -77,6 +77,12 @@ func (fs *fakeSystem) handle(c run.Call) (run.FakeResponse, bool) {
 	defer fs.mu.Unlock()
 	a := c.Args
 	switch {
+	case c.Name == "getent" && a[0] == "passwd" && len(a) == 1:
+		var out string
+		for u := range fs.users {
+			out += u + ":x:999:999::/x:/usr/sbin/nologin\n"
+		}
+		return run.FakeResponse{Stdout: out + "root:x:0:0::/root:/bin/bash\n"}, true
 	case c.Name == "getent" && a[0] == "passwd":
 		if fs.users[a[1]] {
 			return run.FakeResponse{Stdout: a[1] + ":x:999:999::/x:/usr/sbin/nologin\n"}, true
@@ -155,7 +161,7 @@ func newHarness(t *testing.T) *harness {
 	if _, err := v.Create("test vault passphrase"); err != nil {
 		t.Fatal(err)
 	}
-	fw := &memFirewall{}
+	fw := &memFirewall{rules: append([]firewall.Rule{}, firewall.CaddyRules...)}
 	cad := &caddy.Caddy{R: h.fake, Caddyfile: filepath.Join(root, "caddy", "Caddyfile"),
 		GlobalFile: filepath.Join(root, "caddy", "global.caddy"), SitesDir: filepath.Join(root, "caddy", "sites"),
 		DataDir: filepath.Join(root, "caddydata")}

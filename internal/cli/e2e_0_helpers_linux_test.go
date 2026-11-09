@@ -17,6 +17,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/GenericD00d/shiver-server-manager/internal/run"
 )
 
 // e2eSetupFlags answers setup's questions and points Caddy at Pebble
@@ -25,6 +27,9 @@ func e2eSetupFlags() []string {
 	f := []string{"--yes"}
 	if ca := os.Getenv("SSM_ACME_CA"); ca != "" {
 		f = append(f, "--acme-ca", ca, "--acme-ca-root", os.Getenv("SSM_ACME_CA_ROOT"))
+	}
+	if ip := os.Getenv("SSM_PUBLIC_IP"); ip != "" {
+		f = append(f, "--public-ip", ip) // CI's real public address is NAT'd away
 	}
 	return f
 }
@@ -93,3 +98,5 @@ func (e *e2e) stdout(t *testing.T, moreStdin string, args ...string) string {
 	}
 	return out
 }
+
+func runnerForTest() run.Runner { return &run.Exec{} }
