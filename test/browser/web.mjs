@@ -38,7 +38,7 @@ try {
 
   for (const [hash, text] of [['certificates', 'days left'], ['storage', '/var/lib/sharkord'], ['firewall', 'caddy'], ['security', user]]) {
     await page.goto(`${base}/#/${hash}`);
-    await page.waitForSelector(`text=${text}`, { timeout: 60_000 });
+    await page.getByText(text).first().waitFor({ timeout: 60_000 });
     check(true, `${hash} page shows ${text}`);
   }
 
