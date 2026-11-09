@@ -29,9 +29,15 @@ const trackConnections = () => {
   Object.setPrototypeOf(window.RTCPeerConnection, Original);
 };
 
+const expectShiver = process.argv.includes('--expect-shiver');
+const shiverBundles = new Map();
+
 const join = async (name) => {
   const context = await browser.newContext({ ignoreHTTPSErrors: insecure, permissions: ['microphone'] });
   const page = await context.newPage();
+  page.on('response', (r) => {
+    if (r.url().includes('/plugin-bundle/shiver/client/index.js')) shiverBundles.set(name, r.status());
+  });
   page.on('console', (m) => { if (m.type() === 'error') console.log(`[${name}] console: ${m.text()}`); });
   await page.addInitScript(trackConnections);
   await page.goto(url);
@@ -78,6 +84,14 @@ try {
       failed = true;
       console.error(`${name}: no audio arriving`);
       await page.screenshot({ path: `voice-${name}.png` });
+    }
+    if (expectShiver) {
+      const status = shiverBundles.get(name);
+      console.log(`${name}: Shiver's client bundle answered ${status}`);
+      if (status !== 200) {
+        failed = true;
+        console.error(`${name}: Shiver's client didn't load in the browser`);
+      }
     }
   }
 } catch (e) {

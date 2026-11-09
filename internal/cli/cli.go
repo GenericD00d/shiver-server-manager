@@ -123,7 +123,7 @@ func exitCode(err error) int {
 }
 
 // noRootNeeded lists commands that work as any user and on any OS.
-var noRootNeeded = map[string]bool{"version": true, "help": true, "completion": true, "internal-vacuum": true}
+var noRootNeeded = map[string]bool{"version": true, "help": true, "completion": true, "internal-vacuum": true, "internal-enable-plugins": true}
 
 func (a *App) newRoot() *cobra.Command {
 	root := &cobra.Command{

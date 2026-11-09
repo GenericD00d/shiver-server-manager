@@ -28,6 +28,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/backup"
 	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
 	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
+	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
 )
 
 // copyTree is the fake rsync: copies plain files and folders, skipping what
@@ -230,8 +231,8 @@ func newHarness(t *testing.T) *harness {
 			_, err := os.Lstat(p)
 			return 0, 0, err
 		},
-		Now:      func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
-		VacuumAs: func(_ context.Context, _, _ int, src, dst string) error { return backup.Vacuum(src, dst) },
+		Now:        func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
+		AsInstance: func(ctx context.Context, uid, gid int, args ...string) error { return runSelfAsInProcess(args...) },
 	}
 	h.s.St.Settings.BackupLocation = filepath.Join(root, "backups")
 	return h
@@ -435,4 +436,15 @@ func TestSaveToken(t *testing.T) {
 	if err := h.s.SaveToken("chat-a", strings.ToUpper(testToken)); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// runSelfAsInProcess does what the hidden internal commands do, in-process.
+func runSelfAsInProcess(args ...string) error {
+	switch args[0] {
+	case "internal-vacuum":
+		return backup.Vacuum(args[1], args[2])
+	case "internal-enable-plugins":
+		return plugins.EnableInDB(args[1])
+	}
+	return fmt.Errorf("unknown internal command %s", args[0])
 }

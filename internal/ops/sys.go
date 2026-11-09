@@ -19,6 +19,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/netinfo"
 	"github.com/GenericD00d/shiver-server-manager/internal/osuser"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
+	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
 	"github.com/GenericD00d/shiver-server-manager/internal/run"
 	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
@@ -82,11 +83,15 @@ type Sys struct {
 	VaultKey *vault.Key
 	Fstab    string
 	newKeys  map[string][]byte
-	// VacuumAs copies a live database with VACUUM INTO as the given user.
-	VacuumAs       func(ctx context.Context, uid, gid int, src, dst string) error
+	// AsInstance runs one of the binary's hidden internal commands as an
+	// instance's user (copying or changing its database).
+	AsInstance     func(ctx context.Context, uid, gid int, args ...string) error
 	ManagerVersion string
-	importSource   *ImportSource
-	importHooks    ImportHooks
+	Shiver         *plugins.Client
+	// PluginLog reads a unit's journal since a time (nil skips the check).
+	PluginLog    func(ctx context.Context, unit string, since time.Time) (string, error)
+	importSource *ImportSource
+	importHooks  ImportHooks
 
 	FirstStart  func(context.Context, sharkord.FirstStartOpts) (string, error)
 	WaitHealthy func(ctx context.Context, port int, timeout time.Duration) error
@@ -113,7 +118,7 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		CertWait:       2 * time.Minute,
 		LUKS:           luks.LUKS{R: r},
 		Fstab:          "/etc/fstab",
-		VacuumAs:       vacuumAs,
+		AsInstance:     runSelfAs,
 		ManagerVersion: strings.TrimPrefix(userAgent, paths.Cmd+"/"),
 		FirstStart:     sharkord.FirstStart,
 		WaitHealthy:    sharkord.WaitHealthy,
@@ -127,6 +132,8 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		Now:      time.Now,
 	}
 	s.EraseContainer = s.eraseContainer
+	s.Shiver = plugins.NewClient(userAgent, filepath.Join(p.CacheDir, "shiver-release.json"))
+	s.PluginLog = journalSince(r)
 	s.DNSCheck = func(ctx context.Context, domain string) netinfo.DNSResult {
 		return netinfo.CheckDNS(ctx, domain, s.St.Settings.PublicIPv4, netinfo.LocalIPv6())
 	}

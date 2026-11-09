@@ -11,21 +11,21 @@ import (
 	"syscall"
 )
 
-// vacuumAs runs this same binary's hidden "internal-vacuum" command as the
-// instance's user, so SQLite never leaves root-owned files beside the live
-// database.
-func vacuumAs(ctx context.Context, uid, gid int, src, dst string) error {
+// runSelfAs runs one of this binary's hidden internal commands as an
+// instance's user, so SQLite never leaves root-owned files beside a
+// server's database.
+func runSelfAs(ctx context.Context, uid, gid int, args ...string) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, self, "internal-vacuum", src, dst)
+	cmd := exec.CommandContext(ctx, self, args...)
 	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LANG=C.UTF-8"}
 	cmd.Dir = "/"
 	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid), Groups: []uint32{}}}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("copy the database: %v: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%s: %v: %s", args[0], err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
