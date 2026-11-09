@@ -55,6 +55,24 @@ func ExecRunner(bin string) Runner {
 	}
 }
 
+// JobInfo is a job's state at one moment, safe to encode.
+type JobInfo struct {
+	ID       string    `json:"id"`
+	Action   string    `json:"action"`
+	Title    string    `json:"title"`
+	User     string    `json:"user"`
+	Started  time.Time `json:"started"`
+	Done     bool      `json:"done"`
+	ExitCode int       `json:"exitCode"`
+}
+
+// Info copies the job's state under its lock.
+func (j *Job) Info() JobInfo {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return JobInfo{j.ID, j.Action, j.Title, j.User, j.Started, j.Done, j.ExitCode}
+}
+
 // Job is one action running (or finished).
 type Job struct {
 	ID       string    `json:"id"`
@@ -141,12 +159,13 @@ func (js *Jobs) Get(id string) *Job {
 }
 
 // Recent lists jobs, newest first.
-func (js *Jobs) Recent() []*Job {
+func (js *Jobs) Recent() []JobInfo {
 	js.mu.Lock()
-	defer js.mu.Unlock()
-	out := make([]*Job, 0, len(js.list))
-	for i := len(js.list) - 1; i >= 0; i-- {
-		out = append(out, js.list[i])
+	list := append([]*Job{}, js.list...)
+	js.mu.Unlock()
+	out := make([]JobInfo, 0, len(list))
+	for i := len(list) - 1; i >= 0; i-- {
+		out = append(out, list[i].Info())
 	}
 	return out
 }

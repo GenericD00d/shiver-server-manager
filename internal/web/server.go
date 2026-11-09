@@ -358,7 +358,7 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request, sess *Session) {
 	}
 	args = append(args, s.globals(sess.User)[1:]...) // not --json: show progress
 	j := s.Jobs.Start(name, a.Title, sess.User, args, stdin)
-	writeJSON(w, http.StatusAccepted, j)
+	writeJSON(w, http.StatusAccepted, j.Info())
 }
 
 // token shows a secret token: password again, then the vault passphrase.

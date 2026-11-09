@@ -48,6 +48,13 @@ type harness struct {
 	stdins [][]string
 }
 
+// commands returns what ran, under the lock (jobs run in goroutines).
+func (h *harness) commands() ([][]string, [][]string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([][]string{}, h.ran...), append([][]string{}, h.stdins...)
+}
+
 func newHarness(t *testing.T, needCode bool) *harness {
 	h := &harness{}
 	run := func(_ context.Context, args, stdin []string, line func(string)) (int, error) {
@@ -214,7 +221,8 @@ func TestActionsBuildFixedCommands(t *testing.T) {
 	if !strings.Contains(lines, "step") || !strings.Contains(lines, "done:0") {
 		t.Fatalf("stream: %q", lines)
 	}
-	got := strings.Join(h.ran[0], " ")
+	ran, _ := h.commands()
+	got := strings.Join(ran[0], " ")
 	want := "instance create --id chat-a --domain chat-a.example.com --tls selfsigned --yes --passphrase-stdin --acting-user alice"
 	if got != want {
 		t.Fatalf("ran %q\nwant %q", got, want)
@@ -266,7 +274,7 @@ func TestSensitiveActionsNeedThePasswordAgain(t *testing.T) {
 		t.Fatalf("delete: %v", out)
 	}
 	h.stream(t, out["id"].(string))
-	if h.stdins[0][0] != "chat-a" {
+	if _, stdins := h.commands(); stdins[0][0] != "chat-a" {
 		t.Fatal("the ID wasn't typed back to the command")
 	}
 }
@@ -282,7 +290,7 @@ func TestSecretsStayOutOfJobOutput(t *testing.T) {
 	if strings.Contains(lines, "very secret") || !strings.Contains(lines, "[hidden]") {
 		t.Fatalf("secret in output: %q", lines)
 	}
-	if strings.Contains(strings.Join(h.ran[0], " "), "secret") {
+	if ran, _ := h.commands(); strings.Contains(strings.Join(ran[0], " "), "secret") {
 		t.Fatal("secret in the command line")
 	}
 }
@@ -327,8 +335,8 @@ func TestDataReads(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("servers: %d", resp.StatusCode)
 	}
-	if got := strings.Join(h.ran[0], " "); got != "instance list --json --yes --passphrase-stdin --acting-user alice" {
-		t.Fatalf("ran %q", got)
+	if ran, _ := h.commands(); strings.Join(ran[0], " ") != "instance list --json --yes --passphrase-stdin --acting-user alice" {
+		t.Fatalf("ran %q", ran[0])
 	}
 	if resp, _ := h.do(t, "GET", "/api/data/"+url.PathEscape("../etc"), nil, nil); resp.StatusCode != 404 {
 		t.Fatal("unknown read allowed")
