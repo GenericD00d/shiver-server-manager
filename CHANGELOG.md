@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 (2026-11-10)
+
+- Setup failed with "can't read Caddy's version" when Ubuntu's own Caddy (2.6.2) was installed. It now reads that version, and offers to upgrade Caddy in place from Caddy's own repository, keeping an existing Caddyfile.
+- A server left in an unfinished import (or any other unfinished operation) can now be deleted, and so "Remove everything" works too. Deleting after an interrupted move also removes the copy in the other location.
+- Repair explains that an unfinished import needs the same import run again, or the server deleted.
+- Creating or importing a server is refused until first-time setup has finished.
+
 ## 0.1.0 (2026-11-10)
 
 First release. Everything in the checklist, built in the guide's order:
