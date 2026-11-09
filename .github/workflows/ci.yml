@@ -53,8 +53,8 @@ jobs:
           sudo apt-get install -y ./dist/*.deb
           getent group shiver-admins
           sudo test -d /var/lib/shiver-server-manager/vault
-          sudo test "$(stat -c %a /var/lib/shiver-server-manager)" = 711
-          sudo test "$(stat -c %a /etc/sudoers.d/shiver-server-manager)" = 440
+          test "$(sudo stat -c %a /var/lib/shiver-server-manager)" = 711
+          test "$(sudo stat -c %a /etc/sudoers.d/shiver-server-manager)" = 440
           systemctl is-enabled shiver-server-manager-health.timer shiver-server-manager-backup.timer
           systemctl list-timers 'shiver-server-manager-*' --no-pager
           # The timers would run during the tests; keep the tests deterministic.
