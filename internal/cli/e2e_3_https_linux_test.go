@@ -21,7 +21,7 @@ import (
 func httpsClient(t *testing.T, roots []byte) *http.Client {
 	t.Helper()
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(roots) {
+	if roots != nil && !pool.AppendCertsFromPEM(roots) {
 		t.Fatal("no certificates in the root PEM")
 	}
 	d := &net.Dialer{Timeout: 5 * time.Second}

@@ -104,7 +104,7 @@ func (s *Sys) stepCertificate(id string) Step {
 			inst := s.St.Instances[id]
 			if inst.TLS == state.TLSLetsEncrypt && s.St.Settings.ACMECA == "" && s.DNSCheck != nil {
 				if r := s.DNSCheck(ctx, inst.Domain); !r.OK {
-					s.emit(Event{Instance: id, Op: OpCreate, Step: "certificate", Status: "note", Detail: r.Problem})
+					s.emit(Event{Instance: id, Step: "certificate", Status: "note", Detail: r.Problem})
 				}
 			}
 			deadline := s.Now().Add(s.CertWait)
@@ -129,7 +129,7 @@ func (s *Sys) stepCertificate(id string) Step {
 			if last, _ := s.Caddy.LastCertError(ctx, inst.Domain); last != "" {
 				msg += " Last error: " + last
 			}
-			s.emit(Event{Instance: id, Op: OpCreate, Step: "certificate", Status: "note", Detail: msg})
+			s.emit(Event{Instance: id, Step: "certificate", Status: "note", Detail: msg})
 			return nil
 		},
 	}

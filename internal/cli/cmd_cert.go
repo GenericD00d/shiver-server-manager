@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -66,15 +67,92 @@ func (a *App) certCmd() *cobra.Command {
 			})
 		},
 	}
-	certSwitch := stub("switch <id>", "Switch a server's certificate type", cobra.ExactArgs(1))
-	certSwitch.Flags().String("tls", "", "letsencrypt or selfsigned")
+	var tls string
+	var testMode bool
+	certSwitch := &cobra.Command{
+		Use: "switch <id>", Short: "Switch a server's certificate type (or Let's Encrypt test mode)", Args: cobra.ExactArgs(1),
+		Long: "Writes the new site file, waits for the new certificate, then deletes the old type's certificate. Members of a self-signed server need its root certificate installed; see 'cert root'.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
+				inst, err := s.Instance(args[0])
+				if err != nil {
+					return err
+				}
+				a.say("Switching %s (%s) from %s to %s.", args[0], inst.Domain, describeTLS(inst.TLS, inst.TestMode), describeTLS(state.TLS(tls), testMode))
+				if state.TLS(tls) == state.TLSSelfSigned {
+					a.say("Members will see a certificate warning until they install the root certificate (see 'cert root').")
+				}
+				ok, err := a.term.confirm("Switch?")
+				if err != nil || !ok {
+					return err
+				}
+				return a.logged("cert switch", args[0], func() error {
+					if err := s.SwitchTLS(cmd.Context(), args[0], state.TLS(tls), testMode); err != nil {
+						return err
+					}
+					a.say("✓ %s now uses %s.", args[0], describeTLS(state.TLS(tls), testMode))
+					return nil
+				})
+			})
+		},
+	}
+	certSwitch.Flags().StringVar(&tls, "tls", "", "letsencrypt or selfsigned")
+	certSwitch.Flags().BoolVar(&testMode, "test-mode", false, "use Let's Encrypt's staging server")
 	_ = certSwitch.MarkFlagRequired("tls")
-	certRoot := stub("root", "Show or save the self-signed root certificate", cobra.NoArgs)
-	certRoot.Flags().String("out", "", "save the root certificate to this file")
+
+	var out string
+	certRoot := &cobra.Command{
+		Use: "root", Short: "Show or save the self-signed root certificate members install", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.withOps(state.Shared, func(s *ops.Sys) error {
+				r, err := s.RootInfo()
+				if err != nil {
+					return err
+				}
+				if out != "" {
+					if err := os.WriteFile(out, r.PEM, 0o644); err != nil {
+						return err
+					}
+					_ = os.Chmod(out, 0o644)
+					a.log.Action("cert root", nil, "out", out)
+				}
+				if a.Globals.JSON {
+					return json.NewEncoder(a.Out).Encode(r)
+				}
+				a.say("SHA-256 fingerprint:\n  %s\n", r.Fingerprint)
+				a.say("Expires: %s", r.NotAfter.Format("2006-01-02"))
+				if r.Warning != "" {
+					a.say("! %s", r.Warning)
+				}
+				if len(r.URLs) > 0 {
+					a.say("\nMembers download it from:")
+					for _, u := range r.URLs {
+						a.say("  %s", u)
+					}
+				}
+				if out != "" {
+					a.say("\nSaved to %s", out)
+				}
+				a.say("\nThe download isn't encrypted, so send members the fingerprint another way (chat, email)\nand ask them to compare it before trusting the file. Install steps: see Help, \"Install the root certificate\".")
+				return nil
+			})
+		},
+	}
+	certRoot.Flags().StringVar(&out, "out", "", "also save the root certificate to this file")
 
 	c := &cobra.Command{Use: "cert", Short: "Certificates", Args: cobra.NoArgs}
 	c.AddCommand(status, retry, certSwitch, certRoot)
 	return c
+}
+
+func describeTLS(t state.TLS, testMode bool) string {
+	switch {
+	case t == state.TLSSelfSigned:
+		return "a self-signed certificate"
+	case testMode:
+		return "Let's Encrypt's staging server (test mode)"
+	}
+	return "Let's Encrypt"
 }
 
 func (a *App) firewallCmd() *cobra.Command {

@@ -77,7 +77,7 @@ func (s *Sys) RepairPlan(ctx context.Context) ([]Finding, error) {
 func (s *Sys) missingFor(ctx context.Context, id string) ([]Finding, error) {
 	inst := s.St.Instances[id]
 	var out []Finding
-	for _, st := range s.createSteps(id) {
+	for _, st := range append(s.createSteps(id), s.stepOldCerts(id)) {
 		switch st.Name {
 		case "certificate", "active":
 			continue
@@ -103,8 +103,11 @@ func (s *Sys) missingFor(ctx context.Context, id string) ([]Finding, error) {
 		if !done {
 			st := st
 			what := "redo step " + st.Name
-			if st.Name == "service" {
+			switch st.Name {
+			case "service":
 				what = "start the server, which stopped unexpectedly"
+			case "old-certificates":
+				what = "remove certificates left from its previous certificate type"
 			}
 			out = append(out, Finding{Kind: "missing", Instance: id, What: what, Fix: st.Do})
 		}

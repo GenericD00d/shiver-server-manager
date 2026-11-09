@@ -123,6 +123,8 @@ func (s *Sys) stepsFor(id, op string) ([]Step, error) {
 		return s.createSteps(id), nil
 	case OpDelete:
 		return s.deleteSteps(id), nil
+	case OpSwitch:
+		return s.switchSteps(id), nil
 	}
 	return nil, fmt.Errorf("unknown operation %q in the records", op)
 }
@@ -131,4 +133,5 @@ func (s *Sys) stepsFor(id, op string) ([]Step, error) {
 const (
 	OpCreate = "create"
 	OpDelete = "delete"
+	OpSwitch = "switch-certificate"
 )

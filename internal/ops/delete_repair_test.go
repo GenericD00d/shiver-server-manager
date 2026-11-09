@@ -181,3 +181,44 @@ func fileList(root string) []string {
 	})
 	return out
 }
+
+func TestSwitchTLS(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.s.Create(ctx, req("chat-a")); err != nil {
+		t.Fatal(err)
+	}
+	// Pretend Caddy issued a Let's Encrypt certificate earlier.
+	leDir := filepath.Join(h.s.Caddy.DataDir, "certificates", "acme-v02.api.letsencrypt.org-directory", "chat-a.example.com")
+	os.MkdirAll(leDir, 0o700)
+	writeTestCert(t, filepath.Join(leDir, "chat-a.example.com.crt"))
+	localDir := filepath.Join(h.s.Caddy.DataDir, "certificates", "local", "chat-a.example.com")
+
+	// No self-signed certificate yet: the old one is kept.
+	if err := h.s.SwitchTLS(ctx, "chat-a", state.TLSSelfSigned, false); err != nil {
+		t.Fatal(err)
+	}
+	site, _ := os.ReadFile(h.s.Caddy.SitePath("chat-a"))
+	if !strings.Contains(string(site), "issuer internal") || !strings.Contains(string(site), "sharkord-root.crt") {
+		t.Fatalf("site file:\n%s", site)
+	}
+	if _, err := os.Stat(leDir); err != nil {
+		t.Fatal("old certificate removed before the new one arrived")
+	}
+	// Once the new one exists, a repair removes the old.
+	os.MkdirAll(localDir, 0o700)
+	writeTestCert(t, filepath.Join(localDir, "chat-a.example.com.crt"))
+	h.s.St.Instances["chat-a"].Operation = &state.Operation{Name: OpSwitch}
+	if err := h.s.Resume(ctx, "chat-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(leDir); err == nil {
+		t.Fatal("old certificate kept")
+	}
+	if err := h.s.SwitchTLS(ctx, "chat-a", state.TLSSelfSigned, false); err == nil {
+		t.Fatal("switching to the same type succeeded")
+	}
+	if err := h.s.SwitchTLS(ctx, "chat-a", state.TLSSelfSigned, true); err == nil {
+		t.Fatal("test mode with self-signed accepted")
+	}
+}
