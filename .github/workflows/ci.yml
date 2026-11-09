@@ -42,7 +42,7 @@ jobs:
           dpkg-deb --contents dist/*.deb
       - name: Check the sudoers file
         run: sudo visudo -cf packaging/sudoers
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: deb-${{ matrix.arch }}
           path: dist/*.deb
@@ -99,7 +99,7 @@ jobs:
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
           node voice.mjs https://chat-a.example.com --insecure --expect-shiver
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: voice-screenshots-${{ matrix.arch }}
@@ -130,13 +130,16 @@ jobs:
     runs-on: ubuntu-24.04
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: deb-amd64
       - name: Install, check, remove
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           apt-get update
-          apt-get install -y ./shiver-server-manager_*.deb sudo
+          # A bare container: recommends (cryptsetup) pull in interactive setup.
+          apt-get install -y --no-install-recommends ./shiver-server-manager_*.deb sudo
           getent group shiver-admins
           test "$(stat -c %a /var/lib/shiver-server-manager)" = 711
           test "$(stat -c %a /var/lib/shiver-server-manager/vault)" = 700

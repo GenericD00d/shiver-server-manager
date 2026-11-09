@@ -38,7 +38,7 @@ jobs:
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION
           mkdir -p dist
           ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t dist/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: deb-${{ matrix.arch }}
           path: dist/*.deb
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
