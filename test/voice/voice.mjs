@@ -45,6 +45,15 @@ const join = async (name) => {
   await page.getByTestId('connect-password-input').fill('Voice-test-passw0rd');
   await page.getByTestId('connect-button').click();
   await page.getByTestId('server-view').waitFor({ timeout: 60_000 });
+  // New members get a "Welcome" profile dialog first.
+  const skip = page.getByRole('button', { name: 'Skip', exact: true });
+  try {
+    await skip.waitFor({ timeout: 10_000 });
+    await skip.click();
+    await skip.waitFor({ state: 'hidden', timeout: 10_000 });
+  } catch {
+    // no dialog
+  }
   await page
     .getByTestId('channel-item')
     .filter({ has: page.getByText('General Voice', { exact: true }) })
