@@ -21,9 +21,11 @@ var setupDirs = []struct {
 	path string
 	mode os.FileMode
 }{
-	{paths.StateDir, 0o700},
+	// 711: instance users must pass through to their version link in bin/
+	// (the unit's ExecStart). Nothing in here is readable by them.
+	{paths.StateDir, 0o711},
 	{paths.VaultDir, 0o700},
-	{paths.VersionLinkDir, 0o700},
+	{paths.VersionLinkDir, 0o755},
 	{paths.ConfigDir, 0o700},
 	{paths.InstanceEnvDir, 0o700},
 	{paths.DefaultDataLocation, 0o711},

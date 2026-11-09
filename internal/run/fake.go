@@ -26,6 +26,9 @@ type Fake struct {
 	// Responses maps a rendered command line (see Argv) or a program name to
 	// its result. Unmatched commands succeed with empty output.
 	Responses map[string]FakeResponse
+	// Handler, if set, is asked first; ok=false falls back to Responses.
+	// It lets tests keep state, such as a user existing after useradd.
+	Handler func(c Call) (r FakeResponse, ok bool)
 }
 
 type FakeResponse struct {
@@ -53,11 +56,21 @@ func (f *Fake) Run(_ context.Context, c Cmd) (Result, error) {
 	call := Call{Name: c.Name, Args: append([]string{}, c.Args...), Stdin: stdin, Env: c.Env}
 	f.mu.Lock()
 	f.Calls = append(f.Calls, call)
-	r, ok := f.Responses[call.String()]
-	if !ok {
-		r = f.Responses[c.Name]
-	}
+	handler := f.Handler
 	f.mu.Unlock()
+	var r FakeResponse
+	ok := false
+	if handler != nil {
+		r, ok = handler(call)
+	}
+	if !ok {
+		f.mu.Lock()
+		r, ok = f.Responses[call.String()]
+		if !ok {
+			r = f.Responses[c.Name]
+		}
+		f.mu.Unlock()
+	}
 
 	res := Result{Stdout: []byte(r.Stdout), Stderr: []byte(r.Stderr), ExitCode: r.ExitCode}
 	if r.Err != nil {

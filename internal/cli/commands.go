@@ -25,20 +25,6 @@ func (a *App) addCommands(root *cobra.Command) {
 
 	setup := a.setupCmd()
 
-	create := stub("create", "Create a server", none)
-	create.Flags().String("id", "", "server ID: lowercase letters, digits and hyphens, starting with a letter, up to 20 characters")
-	create.Flags().String("domain", "", "the domain members will use")
-	create.Flags().String("tls", "letsencrypt", "certificate type: letsencrypt or selfsigned")
-	create.Flags().Bool("test-mode", false, "use Let's Encrypt's staging server")
-	create.Flags().String("location", "", "storage location (default: the default location)")
-	create.Flags().Bool("no-encrypt", false, "don't put the data folder in an encrypted container")
-	create.Flags().String("version", "", "Sharkord version (default: the newest tested one)")
-	_ = create.MarkFlagRequired("id")
-	_ = create.MarkFlagRequired("domain")
-
-	logs := stub("logs <id>", "Show a server's logs", one)
-	logs.Flags().BoolP("follow", "f", false, "keep showing new lines")
-
 	update := stub("update <id>", "Update a server's Sharkord version", one)
 	update.Flags().String("version", "", "Sharkord version (default: the newest tested one)")
 
@@ -46,24 +32,10 @@ func (a *App) addCommands(root *cobra.Command) {
 	move.Flags().String("to", "", "the storage location to move to")
 	_ = move.MarkFlagRequired("to")
 
-	instance := group("instance", "Servers: list, create, start, stop, settings, update, move, delete",
-		stub("list", "List servers", none),
-		stub("show <id>", "Show one server", one),
-		create,
-		stub("start <id>", "Start a server", one),
-		stub("stop <id>", "Stop a server", one),
-		stub("restart <id>", "Restart a server", one),
-		logs,
-		stub("set <id> KEY=VALUE...", "Change a server's settings, then restart it", cobra.MinimumNArgs(2)),
-		update,
-		move,
-		stub("delete <id>", "Delete a server and all its data", one),
-	)
+	instance := a.instanceCmd()
+	instance.AddCommand(update, move, stub("delete <id>", "Delete a server and all its data", one))
 
-	token := group("token", "Secret tokens (owner tokens)",
-		stub("show <id>", "Show a server's secret token", one),
-		stub("save <id>", "Check and save a server's secret token", one),
-	)
+	token := a.tokenCmd()
 
 	shiverUpdate := stub("update [<id>]", "Update the Shiver plugin", cobra.MaximumNArgs(1))
 	shiverUpdate.Flags().Bool("all", false, "update every server, one at a time")

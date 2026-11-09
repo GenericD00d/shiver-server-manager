@@ -15,6 +15,7 @@ import (
 
 	"github.com/GenericD00d/shiver-server-manager/internal/actionlog"
 	"github.com/GenericD00d/shiver-server-manager/internal/auth"
+	"github.com/GenericD00d/shiver-server-manager/internal/ops"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
 	"github.com/GenericD00d/shiver-server-manager/internal/run"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
@@ -104,6 +105,8 @@ func exitCode(err error) int {
 		return ce.Code
 	case errors.As(err, &held):
 		return ExitLocked
+	case ops.IsPartial(err):
+		return ExitPartial
 	case errors.Is(err, auth.ErrBadLogin), errors.Is(err, auth.ErrNotAdmin), errors.As(err, &throttled),
 		errors.Is(err, vault.ErrWrongPassphrase), errors.Is(err, vault.ErrWrongRecoveryKey),
 		errors.Is(err, vault.ErrBadRecoveryFormat), errors.Is(err, errNoTerminal):

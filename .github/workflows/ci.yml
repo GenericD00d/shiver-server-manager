@@ -40,6 +40,8 @@ jobs:
           echo "ssm-admin:$SSM_PAM_PASSWORD" | sudo chpasswd
           echo "ssm-outsider:$SSM_PAM_PASSWORD" | sudo chpasswd
           sudo install -m 755 -o root -g root shiver-server-manager /usr/local/bin/shiver-server-manager
+          sudo install -m 644 packaging/sharkord@.service /usr/lib/systemd/system/sharkord@.service
+          sudo systemctl daemon-reload
         env:
           SSM_PAM_PASSWORD: Ci-Only-Passw0rd
       - name: PAM and end-to-end tests (as root)
@@ -47,9 +49,14 @@ jobs:
           go test -c -o auth.test ./internal/auth
           go test -c -o cli.test ./internal/cli
           sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./auth.test -test.run 'TestPAM' -test.v
-          sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./cli.test -test.run 'TestE2E' -test.v
+          sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./cli.test -test.run 'TestE2E' -test.v -test.timeout 30m
         env:
           SSM_PAM_ADMIN: ssm-admin
           SSM_PAM_OUTSIDER: ssm-outsider
           SSM_PAM_PASSWORD: Ci-Only-Passw0rd
           SSM_E2E_BIN: /usr/local/bin/shiver-server-manager
+      - name: Show what the manager logged
+        if: always()
+        run: |
+          sudo cat /var/log/shiver-server-manager.log || true
+          sudo journalctl -u 'sharkord@*' --no-pager -n 200 || true

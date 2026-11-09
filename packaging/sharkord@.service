@@ -1,0 +1,30 @@
+# Managed by shiver-server-manager. Do not edit.
+[Unit]
+Description=Sharkord instance %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=sharkord-%i
+Group=sharkord-%i
+EnvironmentFile=/etc/shiver-server-manager/instances/%i.env
+ExecStart=/var/lib/shiver-server-manager/bin/%i
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target
