@@ -1,0 +1,167 @@
+// Package cli is the command tree. Commands parse flags and call
+// internal/ops; the menu calls the same functions.
+package cli
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"runtime"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/GenericD00d/shiver-server-manager/internal/paths"
+	"github.com/GenericD00d/shiver-server-manager/internal/state"
+	"github.com/GenericD00d/shiver-server-manager/internal/sysenv"
+)
+
+// Exit codes.
+const (
+	ExitOK      = 0
+	ExitError   = 1
+	ExitUsage   = 2
+	ExitAuth    = 3 // login or vault unlock needed
+	ExitLocked  = 4 // another run holds the lock
+	ExitPartial = 5 // stopped partway; the operation is saved for repair
+)
+
+// ExitError carries an exit code with an error.
+type ExitCodeError struct {
+	Code int
+	Err  error
+}
+
+func (e *ExitCodeError) Error() string { return e.Err.Error() }
+func (e *ExitCodeError) Unwrap() error { return e.Err }
+
+func usageErr(format string, a ...any) error {
+	return &ExitCodeError{Code: ExitUsage, Err: fmt.Errorf(format, a...)}
+}
+
+var errNotBuilt = errors.New("not built yet")
+
+// Globals are the flags every command takes.
+type Globals struct {
+	JSON            bool
+	Yes             bool
+	PasswordStdin   bool
+	PassphraseStdin bool
+}
+
+// App is what commands share.
+type App struct {
+	Version string
+	Env     sysenv.Info
+	Globals Globals
+	Out     io.Writer
+	Err     io.Writer
+}
+
+// Main runs the manager and returns its exit code.
+func Main(version string, args []string) int {
+	env := sysenv.Setup()
+	app := &App{Version: version, Env: env, Out: os.Stdout, Err: os.Stderr}
+	return app.Execute(args)
+}
+
+func (a *App) Execute(args []string) int {
+	root := a.newRoot()
+	root.SetArgs(args)
+	root.SetOut(a.Out)
+	root.SetErr(a.Err)
+	err := root.Execute()
+	if err == nil {
+		return ExitOK
+	}
+	code := exitCode(err)
+	if a.Globals.JSON {
+		json.NewEncoder(a.Err).Encode(map[string]any{"error": err.Error(), "exitCode": code})
+	} else {
+		fmt.Fprintln(a.Err, "Error:", err)
+	}
+	return code
+}
+
+func exitCode(err error) int {
+	var ce *ExitCodeError
+	var held *state.HeldError
+	switch {
+	case errors.As(err, &ce):
+		return ce.Code
+	case errors.As(err, &held):
+		return ExitLocked
+	// cobra's own argument and command errors have no type to match.
+	case strings.HasPrefix(err.Error(), "unknown command"),
+		strings.HasPrefix(err.Error(), "accepts "),
+		strings.HasPrefix(err.Error(), "requires at least"),
+		strings.HasPrefix(err.Error(), "unknown flag"),
+		strings.HasPrefix(err.Error(), "unknown shorthand flag"):
+		return ExitUsage
+	}
+	return ExitError
+}
+
+// noRootNeeded lists commands that work as any user and on any OS.
+var noRootNeeded = map[string]bool{"version": true, "help": true, "completion": true}
+
+func (a *App) newRoot() *cobra.Command {
+	root := &cobra.Command{
+		Use:           paths.Cmd,
+		Short:         paths.AppName + ": set up and run Sharkord servers",
+		Long:          paths.AppName + " sets up, runs, backs up, imports, exports and deletes Sharkord servers on this machine.\nRun it with no arguments to open the menu.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.NoArgs,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if noRootNeeded[cmd.Name()] {
+				return nil
+			}
+			if runtime.GOOS != "linux" {
+				return fmt.Errorf("%s only runs on Linux", paths.Cmd)
+			}
+			if !sysenv.IsRoot() {
+				return fmt.Errorf("%s needs root; run it with sudo: sudo %s", paths.Cmd, paths.Cmd)
+			}
+			return sysenv.CheckOwnership()
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return fmt.Errorf("the menu is %w; run '%s --help' for commands", errNotBuilt, paths.Cmd)
+		},
+	}
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return &ExitCodeError{Code: ExitUsage, Err: err}
+	})
+	pf := root.PersistentFlags()
+	pf.BoolVar(&a.Globals.JSON, "json", false, "machine-readable output, no colour")
+	pf.BoolVar(&a.Globals.Yes, "yes", false, "skip confirmations (never the login or the password check before showing a token)")
+	pf.BoolVar(&a.Globals.PasswordStdin, "password-stdin", false, "read the login password from stdin")
+	pf.BoolVar(&a.Globals.PassphraseStdin, "passphrase-stdin", false, "read the vault or export passphrase from stdin")
+
+	root.AddCommand(a.versionCmd())
+	addCommands(root)
+	return root
+}
+
+func (a *App) versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show the manager's version",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			info := map[string]string{
+				"version": a.Version,
+				"go":      runtime.Version(),
+				"os":      runtime.GOOS,
+				"arch":    runtime.GOARCH,
+			}
+			if a.Globals.JSON {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(info)
+			}
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s (%s, %s/%s)\n", paths.Cmd, a.Version, info["go"], info["os"], info["arch"])
+			return err
+		},
+	}
+}

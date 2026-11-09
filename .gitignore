@@ -1,0 +1,7 @@
+# Reference checkouts of Sharkord and Shiver (clone them locally; see NOTES.md)
+/reference/
+/dist/
+/shiver-server-manager
+*.exe
+*.test
+*.out
