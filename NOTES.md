@@ -28,6 +28,18 @@ Decisions made with the owner, places this build differs from `Implementation gu
 - **UPnP:** the `goupnp` library is used, not `upnpc`, so the package doesn't need to suggest `miniupnpc`.
 - **Operation record:** the instance's `operation` field is an object (`name`, `lastStep`, `failedStep`, `error`, `startedAt`) rather than just a name, so repair knows where to resume.
 - **State file:** it also stores `fixedPublicIPv4`, for when the admin sets the address by hand.
+- **Who may run setup:** while `shiver-admins` has no members, anyone with root through sudo can run setup (they're setting the server up) and becomes the first admin. Once it has members, setup needs an admin login like everything else.
+- **Admins:** removing the last admin is refused, since nobody could then log in except root without sudo.
+- **Passphrases:** vault (and later export) passphrases need at least 12 characters.
+- **Scripted answers:** with `--password-stdin` and `--passphrase-stdin`, answers are read one per line in the order asked: the login password first, then passphrases. On stdin a new passphrase is read once, not twice. Setup's recovery-key confirmation is the next stdin line.
+- **Secrets in memory:** age takes passphrases and keys as Go strings, which can't be wiped. Byte slices are cleared where the code owns them; `Key.Forget` drops the vault key. Everything typed in secret is added to the runner's redaction list.
+- **Exit code 3** also covers a wrong vault passphrase or recovery key, a paused login, and no terminal to ask on.
+
+## Manual checks still to do
+
+- **Interactive login on a real terminal:** CI checks logins through stdin only.
+- **Two-factor login** (guide's "Prototype first"): try `libpam-google-authenticator`; the code forwards every PAM prompt, but it hasn't been tried.
+- **sudo-rs on Ubuntu 26.04:** run the sudoers check there; CI only covers 24.04.
 
 ## Verified against Sharkord v0.0.30 source
 
