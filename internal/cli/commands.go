@@ -23,15 +23,8 @@ func group(use, short string, children ...*cobra.Command) *cobra.Command {
 func (a *App) addCommands(root *cobra.Command) {
 	one, none := cobra.ExactArgs(1), cobra.NoArgs
 
-	setup := a.setupCmd()
-
-	update := stub("update <id>", "Update a server's Sharkord version", one)
-	update.Flags().String("version", "", "Sharkord version (default: the newest tested one)")
-
 	instance := a.instanceCmd()
-	instance.AddCommand(update, a.instanceMove(), a.instanceGrow(), a.deleteCmd())
-
-	token := a.tokenCmd()
+	instance.AddCommand(a.instanceUpdate(), a.instanceMove(), a.instanceGrow(), a.deleteCmd())
 
 	shiverUpdate := stub("update [<id>]", "Update the Shiver plugin", cobra.MaximumNArgs(1))
 	shiverUpdate.Flags().Bool("all", false, "update every server, one at a time")
@@ -41,39 +34,10 @@ func (a *App) addCommands(root *cobra.Command) {
 		shiverUpdate,
 	)
 
-	cert := a.certCmd()
-
-	backup := stub("backup [<id>]", "Back up one server, or all of them", cobra.MaximumNArgs(1))
-	backup.Flags().Bool("all", false, "back up every server")
-	backup.Flags().Bool("unattended", false, "run from the timer: no login, no prompts")
-
-	restore := stub("restore <id> <file>", "Restore a server from a backup", cobra.ExactArgs(2))
-
-	export := stub("export <id>", "Export a server to an encrypted file", one)
-	export.Flags().String("out", "", "the file to write")
-	export.Flags().Bool("include-token", false, "include the secret token inside the encrypted file")
-	_ = export.MarkFlagRequired("out")
-
-	imp := stub("import <file|folder>", "Import a server from an export, a Sharkord data folder or a Docker volume", one)
-	imp.Flags().String("id", "", "the new server's ID")
-	imp.Flags().String("domain", "", "the new server's domain")
-	imp.Flags().String("location", "", "storage location (default: the default location)")
-	_ = imp.MarkFlagRequired("id")
-	_ = imp.MarkFlagRequired("domain")
-
-	storage := a.storageCmd()
-
-	firewall := a.firewallCmd()
-
-	vault := a.vaultCmd()
-
-	admins := a.adminsCmd()
-
 	health := stub("health", "Run the health check", none)
 	health.Flags().Bool("unattended", false, "run from the timer: no login, no prompts")
 
-	repair := a.repairCmd()
-
-	root.AddCommand(setup, instance, token, shiver, cert, backup, restore, export, imp,
-		storage, firewall, vault, admins, health, repair)
+	root.AddCommand(a.setupCmd(), instance, a.tokenCmd(), shiver, a.certCmd(), a.backupCmd(), a.restoreCmd(),
+		a.exportCmd(), a.importCmd(), a.storageCmd(), a.firewallCmd(), a.vaultCmd(), a.adminsCmd(), health,
+		a.repairCmd(), a.internalVacuumCmd())
 }

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/actionlog"
@@ -81,6 +82,11 @@ type Sys struct {
 	VaultKey *vault.Key
 	Fstab    string
 	newKeys  map[string][]byte
+	// VacuumAs copies a live database with VACUUM INTO as the given user.
+	VacuumAs       func(ctx context.Context, uid, gid int, src, dst string) error
+	ManagerVersion string
+	importSource   *ImportSource
+	importHooks    ImportHooks
 
 	FirstStart  func(context.Context, sharkord.FirstStartOpts) (string, error)
 	WaitHealthy func(ctx context.Context, port int, timeout time.Duration) error
@@ -96,19 +102,21 @@ type Sys struct {
 func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string) *Sys {
 	p := DefaultPaths()
 	s := &Sys{
-		Paths:       p,
-		R:           r,
-		St:          st,
-		Vault:       &vault.Vault{Dir: p.VaultDir},
-		Systemd:     systemd.Systemd{R: r},
-		Sharkord:    sharkord.NewClient(userAgent, filepath.Join(p.CacheDir, "sharkord-releases.json")),
-		Log:         log,
-		Caddy:       caddy.New(r, paths.CaddyGlobalFile),
-		CertWait:    2 * time.Minute,
-		LUKS:        luks.LUKS{R: r},
-		Fstab:       "/etc/fstab",
-		FirstStart:  sharkord.FirstStart,
-		WaitHealthy: sharkord.WaitHealthy,
+		Paths:          p,
+		R:              r,
+		St:             st,
+		Vault:          &vault.Vault{Dir: p.VaultDir},
+		Systemd:        systemd.Systemd{R: r},
+		Sharkord:       sharkord.NewClient(userAgent, filepath.Join(p.CacheDir, "sharkord-releases.json")),
+		Log:            log,
+		Caddy:          caddy.New(r, paths.CaddyGlobalFile),
+		CertWait:       2 * time.Minute,
+		LUKS:           luks.LUKS{R: r},
+		Fstab:          "/etc/fstab",
+		VacuumAs:       vacuumAs,
+		ManagerVersion: strings.TrimPrefix(userAgent, paths.Cmd+"/"),
+		FirstStart:     sharkord.FirstStart,
+		WaitHealthy:    sharkord.WaitHealthy,
 		PublicIPv4: func(ctx context.Context) (string, error) {
 			return netinfo.PublicIPv4(ctx, nil, netinfo.IPv4Sources)
 		},

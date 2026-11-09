@@ -25,9 +25,34 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/vault"
 	_ "modernc.org/sqlite"
 
+	"github.com/GenericD00d/shiver-server-manager/internal/backup"
 	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
 	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
 )
+
+// copyTree is the fake rsync: copies plain files and folders, skipping what
+// Sharkord unpacks at every start.
+func copyTree(src, dst string) error {
+	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		switch strings.Split(filepath.ToSlash(rel), "/")[0] {
+		case "interface", "mediasoup", "drizzle", "tmp":
+			return filepath.SkipDir
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o700)
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, 0o600)
+	})
+}
 
 // memFirewall keeps rules in memory.
 type memFirewall struct {
@@ -77,6 +102,11 @@ func (fs *fakeSystem) handle(c run.Call) (run.FakeResponse, bool) {
 	defer fs.mu.Unlock()
 	a := c.Args
 	switch {
+	case c.Name == "rsync":
+		src, dst := strings.TrimSuffix(a[len(a)-2], "/"), strings.TrimSuffix(a[len(a)-1], "/")
+		if err := copyTree(src, dst); err != nil {
+			return run.FakeResponse{ExitCode: 1, Stderr: err.Error()}, true
+		}
 	case c.Name == "getent" && a[0] == "passwd" && len(a) == 1:
 		var out string
 		for u := range fs.users {
@@ -131,6 +161,9 @@ func newHarness(t *testing.T) *harness {
 		}
 	}
 	root := t.TempDir()
+	// Like a real storage location, instance users must pass through.
+	os.Chmod(root, 0o755)
+	os.Chmod(filepath.Dir(root), 0o755)
 	bin := []byte("fake sharkord")
 	sum := sha256.Sum256(bin)
 	asset, _ := sharkord.AssetName(runtime.GOARCH)
@@ -197,8 +230,10 @@ func newHarness(t *testing.T) *harness {
 			_, err := os.Lstat(p)
 			return 0, 0, err
 		},
-		Now: func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
+		Now:      func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
+		VacuumAs: func(_ context.Context, _, _ int, src, dst string) error { return backup.Vacuum(src, dst) },
 	}
+	h.s.St.Settings.BackupLocation = filepath.Join(root, "backups")
 	return h
 }
 

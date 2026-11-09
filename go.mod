@@ -4,11 +4,13 @@ go 1.27.3
 
 require (
 	filippo.io/age v1.3.2
+	github.com/klauspost/compress v1.20.4
 	github.com/msteinert/pam/v2 v2.1.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
+	gopkg.in/ini.v1 v1.67.3
 	modernc.org/sqlite v1.62.0
 )
 
