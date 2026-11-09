@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
 	"github.com/GenericD00d/shiver-server-manager/internal/run"
@@ -168,6 +169,8 @@ type Device struct {
 // Unmounted lists partitions (or whole disks) formatted ext4, XFS or Btrfs
 // with no mount point: drives that can be mounted for Sharkord.
 func Unmounted(ctx context.Context, r run.Runner) ([]Device, error) {
+	// A drive formatted moments ago may not have its UUID recorded yet.
+	_, _ = r.Run(ctx, run.Cmd{Name: "udevadm", Args: []string{"settle", "--timeout=10"}, Timeout: 15 * time.Second})
 	res, err := r.Run(ctx, run.Cmd{Name: "lsblk", Args: []string{"-J", "-o", "PATH,SIZE,TYPE,FSTYPE,UUID,LABEL,MOUNTPOINTS"}})
 	if err != nil {
 		return nil, err
