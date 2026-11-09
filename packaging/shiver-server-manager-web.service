@@ -1,0 +1,12 @@
+# Managed by shiver-server-manager. Do not edit.
+[Unit]
+Description=Shiver Server Manager web page
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/shiver-server-manager web serve
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

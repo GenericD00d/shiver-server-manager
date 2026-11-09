@@ -100,6 +100,12 @@ func (a *App) healthCmd() *cobra.Command {
 					host, _ := os.Hostname()
 					return al.Send(cmd.Context(), paths.AppName+": test alert", fmt.Sprintf("A test alert from %s on %s.", paths.AppName, host))
 				}
+				if a.Globals.JSON {
+					return json.NewEncoder(a.Out).Encode(map[string]any{
+						"configured": al.Configured(), "webhook": al.Webhook,
+						"emailTo": al.Email.To, "smtp": al.Email.Server, "smtpUser": al.Email.User, "emailFrom": al.Email.From,
+					})
+				}
 				switch {
 				case !al.Configured():
 					a.say("Alerts are off.")

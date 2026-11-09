@@ -8,6 +8,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/auth"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
+	"github.com/GenericD00d/shiver-server-manager/internal/validate"
 	"github.com/GenericD00d/shiver-server-manager/internal/vault"
 )
 
@@ -24,8 +25,12 @@ func (a *App) login() error {
 		return nil
 	}
 	if !a.needsLogin() {
-		a.session = auth.NewSession("root", "", time.Now())
-		a.log.User = "root"
+		who := "root"
+		if a.Globals.ActingUser != "" && validate.Username(a.Globals.ActingUser) == nil {
+			who = a.Globals.ActingUser + " (web)"
+		}
+		a.session = auth.NewSession(who, "", time.Now())
+		a.log.User = who
 		return nil
 	}
 	username := a.Env.SudoUser

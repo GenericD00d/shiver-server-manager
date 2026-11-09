@@ -22,6 +22,13 @@ Decisions made with the owner, places this build differs from `Implementation gu
 - **Sharkord versions:** only v0.0.30 on the tested list to start (plugin SDK 2).
 - **Development:** Go on Windows. Linux-only code sits behind build tags, with stand-ins so it builds and tests on Windows; CI runs the real thing on Ubuntu 24.04, amd64 and arm64.
 
+## The web page (added 2026-11-09, at the owner's request)
+
+- **Reach:** a root service (`shiver-server-manager-web`, off until `web enable`) listening on `127.0.0.1:8443` only. Admins use an SSH tunnel, or opt in to an admin domain that Caddy proxies (`/etc/caddy/sites/_admin.caddy`).
+- **One code path:** each web action runs the same CLI command as a child process (root, no sudo user, `--yes --passphrase-stdin --acting-user <admin>`), so the web page reuses everything the e2e tests cover. The browser never sends a command line: `internal/web/actions.go` maps named actions to fixed commands, validating every input (IDs, domains, absolute paths, no leading `-`). A test checks every action builds a command the CLI accepts.
+- **Security:** PAM login (a second hidden prompt becomes a code field), the same throttle and group check; in-memory sessions (HttpOnly, SameSite=Strict, Secure behind Caddy), 10-minute idle and 24-hour limits; password again for tokens, deletes, restores, vault changes and remove-everything; changes need an app header and same origin; unknown Host headers are refused (DNS rebinding); strict CSP. Secrets passed on stdin are blanked out of job output; the secret token is returned once and kept nowhere.
+- **Front end:** React 19, Vite, Tailwind 4, with components copied from Sharkord's `packages/ui` (MIT) and its theme tokens, following the guide's "a web interface should use Sharkord's own stack". The built files in `internal/web/dist` are committed (the binary embeds them) and rebuilt in CI and releases.
+
 ## Differences from the guide
 
 - **Port check:** the guide's test bind is used, not the checklist's `ss -lntu`.

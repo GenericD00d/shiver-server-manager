@@ -68,6 +68,17 @@ func (a *App) storageCmd() *cobra.Command {
 					return err
 				}
 				if len(args) == 0 {
+					if a.Globals.JSON {
+						type drive struct {
+							storage.Device
+							MountPoint string `json:"mountPoint"`
+						}
+						out := []drive{}
+						for _, d := range devs {
+							out = append(out, drive{d, storage.MountPointFor(d)})
+						}
+						return json.NewEncoder(a.Out).Encode(out)
+					}
 					if len(devs) == 0 {
 						a.say("No formatted, unmounted ext4, XFS or Btrfs drives found. See Help, \"Add a new drive for Sharkord data\".")
 						return nil

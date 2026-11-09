@@ -14,3 +14,4 @@ First release. Everything in the checklist, built in the guide's order:
 - The Shiver plugin in one step.
 - A health check every five minutes with email or webhook alerts, public IP changes, UPnP.
 - Resumable operations and `repair`.
+- A web page with everything the menu does, for servers without a desktop: on the loopback address only, reached through an SSH tunnel or an admin domain through Caddy, with the same PAM login.

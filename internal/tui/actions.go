@@ -352,6 +352,21 @@ var Sections = []Section{
 	{"System", "first-time setup, health check, repair, help, update manager", []Action{
 		plain("First-time setup", "check the system; safe to run again", "setup"),
 		plain("Health check", "everything the timer checks, now", "health"),
+		plain("Web page", "is it on, and how to open it", "web", "status"),
+		{Title: "Switch on the web page", Desc: "reached through an SSH tunnel, or a domain", Form: func(Snapshot) ([]string, bool, error) {
+			domain := ""
+			ok, err := run(input("Admin domain (optional)", "leave empty to reach it only through an SSH tunnel; with a domain, Caddy serves it over HTTPS", &domain, func(s string) error {
+				if s == "" {
+					return nil
+				}
+				return domainCheck(s)
+			}))
+			args := []string{"web", "enable"}
+			if domain != "" {
+				args = append(args, "--domain", domain)
+			}
+			return args, ok, err
+		}},
 		{Title: "Repair", Desc: "make the system match the records", Form: func(Snapshot) ([]string, bool, error) {
 			return []string{"repair"}, true, nil
 		}},

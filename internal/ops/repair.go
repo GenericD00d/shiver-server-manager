@@ -134,8 +134,8 @@ func (s *Sys) leftovers(ctx context.Context) ([]Finding, error) {
 			name := e.Name()
 			id := strings.TrimSuffix(strings.TrimSuffix(name, ".caddy"), ".next")
 			p := filepath.Join(s.Caddy.SitesDir, name)
-			if !strings.HasSuffix(name, ".caddy") || !isManaged(p, paths.Marker) {
-				continue
+			if !strings.HasSuffix(name, ".caddy") || !isManaged(p, paths.Marker) || validate.InstanceID(id) != nil {
+				continue // the web page's _admin.caddy isn't a server's
 			}
 			if s.known(id) && !strings.HasSuffix(name, ".next.caddy") {
 				continue

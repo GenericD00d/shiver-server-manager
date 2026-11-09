@@ -53,6 +53,9 @@ contents:
   - src: packaging/shiver-server-manager-backup.timer
     dst: /usr/lib/systemd/system/shiver-server-manager-backup.timer
     file_info: { mode: 0644 }
+  - src: packaging/shiver-server-manager-web.service
+    dst: /usr/lib/systemd/system/shiver-server-manager-web.service
+    file_info: { mode: 0644 }
   - src: packaging/logrotate
     dst: /etc/logrotate.d/shiver-server-manager
     type: config|noreplace

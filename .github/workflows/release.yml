@@ -28,6 +28,11 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Build the web page
+        run: cd internal/web/ui && npm ci --no-audit --no-fund && npm run build
       - run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
       - run: go test ./...
       - run: sudo visudo -cf packaging/sudoers

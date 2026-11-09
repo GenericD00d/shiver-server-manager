@@ -52,6 +52,9 @@ type Globals struct {
 	Yes             bool
 	PasswordStdin   bool
 	PassphraseStdin bool
+	// ActingUser is the admin a web request runs for (hidden; honoured only
+	// when root runs the manager directly, as the web service does).
+	ActingUser string
 }
 
 // App is what commands share.
@@ -165,6 +168,8 @@ func (a *App) newRoot() *cobra.Command {
 	pf.BoolVar(&a.Globals.Yes, "yes", false, "skip confirmations (never the login or the password check before showing a token)")
 	pf.BoolVar(&a.Globals.PasswordStdin, "password-stdin", false, "read the login password from stdin")
 	pf.BoolVar(&a.Globals.PassphraseStdin, "passphrase-stdin", false, "read the vault or export passphrase from stdin")
+	pf.StringVar(&a.Globals.ActingUser, "acting-user", "", "the logged-in web admin, for the log")
+	_ = pf.MarkHidden("acting-user")
 
 	root.AddCommand(a.versionCmd())
 	a.addCommands(root)

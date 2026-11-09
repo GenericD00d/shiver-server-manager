@@ -63,6 +63,9 @@ type Settings struct {
 	// UPnP is on when the admin asked the manager to forward ports on a
 	// home router.
 	UPnP bool `json:"upnp,omitempty"`
+	// WebDomain serves the web page through Caddy (empty: SSH tunnel only).
+	WebDomain string `json:"webDomain,omitempty"`
+	WebTLS    TLS    `json:"webTLS,omitempty"`
 }
 
 // Operation is a create, delete, update, switch, move, unlock, restore or

@@ -47,6 +47,31 @@ Admins are OS accounts in `shiver-admins`. Start the manager with `sudo shiver-s
 
 Scripts can pass `--password-stdin` and `--passphrase-stdin` (answers one per line, password first), `--yes` to skip confirmations and `--json` for machine-readable output. Exit codes: 0 done, 1 error, 2 bad usage, 3 login or vault needed, 4 another run holds the lock, 5 stopped partway (run `repair`).
 
+## The web page
+
+Everything the menu does is also on a web page, for servers without a desktop. It's off until you switch it on (System > Switch on the web page, or):
+
+    sudo shiver-server-manager web enable
+
+It only listens on the server itself (`127.0.0.1:8443`), so nothing new is exposed. Open it from your own computer through an SSH tunnel:
+
+    ssh -L 8443:localhost:8443 you@your-server
+
+then browse to http://localhost:8443 and log in with your OS username and password, the same as the menu (two-factor codes included).
+
+To reach it from anywhere without a tunnel, give it a domain pointing at the server; Caddy then serves it over HTTPS:
+
+    sudo shiver-server-manager web enable --domain admin.example.com
+
+That puts a root-level control panel on the internet behind your OS password, so prefer the tunnel unless you need it. Either way:
+
+- Only `shiver-admins` members can log in, with the same pause after failed logins. Sessions end after 10 idle minutes.
+- Showing a secret token, deleting a server, restoring a backup, changing the vault passphrase and removing everything ask for your password again.
+- Each action runs the same command the terminal runs, logged under your name with "(web)"; its progress shows live.
+- The page refuses requests from other sites and unknown host names.
+
+`web status` shows whether it's on; `web disable` switches it off and removes its domain.
+
 ## The menu
 
 ### 1. Servers
