@@ -132,4 +132,4 @@ The health check runs every 5 minutes and from System > Health check: servers ru
 
 ## Uninstalling
 
-Removing the package never stops or deletes a server. To remove everything, use System > Remove everything first (it deletes every server), then `sudo apt remove shiver-server-manager`. The vault, records and backups stay until you delete them.
+Removing the package never stops or deletes a server, but it does remove the shared unit (`sharkord@.service`), so servers keep running only until the next reboot. To remove everything, use System > Remove everything first (it deletes every server), then `sudo apt remove shiver-server-manager`. The vault, records and backups stay until you delete them; reinstalling the package brings the servers back as they were.
