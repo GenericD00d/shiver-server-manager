@@ -55,6 +55,11 @@ type Settings struct {
 	BackupLocation   string     `json:"backupLocation"`
 	BackupKeep       int        `json:"backupKeep"`
 	ContainerSizeGiB int        `json:"containerSizeGiB"`
+	// Email is given to Let's Encrypt (and lets Caddy fall back to ZeroSSL).
+	Email string `json:"email,omitempty"`
+	// ACMECA and ACMECARoot point Caddy at a test CA (Pebble); hidden setting.
+	ACMECA     string `json:"acmeCA,omitempty"`
+	ACMECARoot string `json:"acmeCARoot,omitempty"`
 }
 
 // Operation is a create, delete, update, switch, move, unlock, restore or

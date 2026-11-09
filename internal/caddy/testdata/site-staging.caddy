@@ -1,0 +1,10 @@
+# Managed by shiver-server-manager (instance chat-a). Do not edit.
+chat-a.example.com {
+	tls {
+		ca https://acme-staging-v02.api.letsencrypt.org/directory
+	}
+	reverse_proxy 127.0.0.1:5000
+	handle_errors 502 {
+		respond "This server is offline for maintenance. Try again in a few minutes." 503
+	}
+}

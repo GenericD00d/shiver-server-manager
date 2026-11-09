@@ -45,17 +45,7 @@ func (a *App) addCommands(root *cobra.Command) {
 		shiverUpdate,
 	)
 
-	certSwitch := stub("switch <id>", "Switch a server's certificate type", one)
-	certSwitch.Flags().String("tls", "", "letsencrypt or selfsigned")
-	_ = certSwitch.MarkFlagRequired("tls")
-	certRoot := stub("root", "Show or save the self-signed root certificate", none)
-	certRoot.Flags().String("out", "", "save the root certificate to this file")
-	cert := group("cert", "Certificates",
-		stub("status [<id>]", "Show certificate status and expiry", cobra.MaximumNArgs(1)),
-		certSwitch,
-		stub("retry <id>", "Recheck DNS and retry getting a certificate now", one),
-		certRoot,
-	)
+	cert := a.certCmd()
 
 	backup := stub("backup [<id>]", "Back up one server, or all of them", cobra.MaximumNArgs(1))
 	backup.Flags().Bool("all", false, "back up every server")
@@ -83,10 +73,7 @@ func (a *App) addCommands(root *cobra.Command) {
 		stub("default <path>", "Make a location the default for new servers", one),
 	)
 
-	firewall := group("firewall", "Firewall rules",
-		stub("status", "Show the manager's firewall rules", none),
-		stub("repair", "Add missing rules and remove leftovers", none),
-	)
+	firewall := a.firewallCmd()
 
 	vault := a.vaultCmd()
 

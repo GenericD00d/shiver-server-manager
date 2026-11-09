@@ -24,7 +24,43 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/systemd"
 	"github.com/GenericD00d/shiver-server-manager/internal/vault"
 	_ "modernc.org/sqlite"
+
+	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
+	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
 )
+
+// memFirewall keeps rules in memory.
+type memFirewall struct {
+	mu    sync.Mutex
+	rules []firewall.Rule
+}
+
+func (m *memFirewall) Name() string                         { return "mem" }
+func (m *memFirewall) Active(context.Context) (bool, error) { return true, nil }
+func (m *memFirewall) Allow(_ context.Context, r firewall.Rule) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !firewall.Contains(m.rules, r) {
+		m.rules = append(m.rules, r)
+	}
+	return nil
+}
+func (m *memFirewall) Remove(_ context.Context, r firewall.Rule) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, x := range m.rules {
+		if x == r {
+			m.rules = append(m.rules[:i], m.rules[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+func (m *memFirewall) List(context.Context) ([]firewall.Rule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]firewall.Rule{}, m.rules...), nil
+}
 
 const testToken = "019a6b2c-3d4e-7f80-9123-456789abcdef"
 
@@ -119,10 +155,15 @@ func newHarness(t *testing.T) *harness {
 	if _, err := v.Create("test vault passphrase"); err != nil {
 		t.Fatal(err)
 	}
+	fw := &memFirewall{}
+	cad := &caddy.Caddy{R: h.fake, Caddyfile: filepath.Join(root, "caddy", "Caddyfile"),
+		GlobalFile: filepath.Join(root, "caddy", "global.caddy"), SitesDir: filepath.Join(root, "caddy", "sites"),
+		DataDir: filepath.Join(root, "caddydata")}
 	client := sharkord.NewClient("test", "")
 	client.DownloadBase = srv.URL + "/dl"
 	h.s = &Sys{
 		Paths: p, R: h.fake, St: st, Vault: v, Systemd: systemd.Systemd{R: h.fake}, Sharkord: client,
+		Caddy: cad, FirewallFor: func(string) firewall.Firewall { return fw },
 		FirstStart: func(_ context.Context, o sharkord.FirstStartOpts) (string, error) {
 			h.firstStart++
 			db, err := sql.Open("sqlite", "file:"+filepath.Join(o.DataPath, "db.sqlite"))

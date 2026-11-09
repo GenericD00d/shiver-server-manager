@@ -1,0 +1,24 @@
+# Managed by shiver-server-manager (instance chat-b). Do not edit.
+chat-b.example.com {
+	tls {
+		issuer internal {
+			lifetime 365d
+		}
+	}
+	reverse_proxy 127.0.0.1:5001
+	handle_errors 502 {
+		respond "This server is offline for maintenance. Try again in a few minutes." 503
+	}
+}
+
+http://chat-b.example.com {
+	handle /sharkord-root.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}

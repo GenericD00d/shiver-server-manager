@@ -1,0 +1,13 @@
+# Managed by shiver-server-manager. Do not edit.
+email admin@example.com
+acme_ca https://localhost:14000/dir
+acme_ca_root /etc/caddy/pebble.pem
+skip_install_trust
+pki {
+	ca local {
+		name "Shiver Server Manager"
+		root_cn "Shiver Server Manager Root"
+		intermediate_lifetime 730d
+		renewal_window_ratio 0.5
+	}
+}

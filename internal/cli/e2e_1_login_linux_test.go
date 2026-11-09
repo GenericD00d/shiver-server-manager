@@ -22,7 +22,7 @@ func TestE2ELoginAndVault(t *testing.T) {
 	const pass1, pass2 = e2ePass1, e2ePass2
 
 	t.Run("setup shows the recovery key once and needs it confirmed", func(t *testing.T) {
-		cmd := exec.Command(bin, "setup", "--password-stdin", "--passphrase-stdin")
+		cmd := exec.Command(bin, append([]string{"setup", "--password-stdin", "--passphrase-stdin"}, e2eSetupFlags()...)...)
 		cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "SUDO_USER=" + admin}
 		stdin, _ := cmd.StdinPipe()
 		stdout, _ := cmd.StdoutPipe()
@@ -65,7 +65,7 @@ func TestE2ELoginAndVault(t *testing.T) {
 	})
 
 	t.Run("setup again keeps the vault", func(t *testing.T) {
-		if out := e.expect(t, 0, admin, pw+"\n", "setup", "--password-stdin"); !strings.Contains(out, "already set up") {
+		if out := e.expect(t, 0, admin, pw+"\n", append([]string{"setup", "--password-stdin"}, e2eSetupFlags()...)...); !strings.Contains(out, "already set up") {
 			t.Fatalf("output: %s", out)
 		}
 	})

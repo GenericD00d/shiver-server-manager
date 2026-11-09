@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/actionlog"
+	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
+	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
 	"github.com/GenericD00d/shiver-server-manager/internal/netinfo"
 	"github.com/GenericD00d/shiver-server-manager/internal/osuser"
@@ -65,6 +67,11 @@ type Sys struct {
 	Sharkord *sharkord.Client
 	Log      *actionlog.Logger
 	Progress func(Event)
+	Caddy    *caddy.Caddy
+	// FirewallFor picks the firewall backend; nil means the real one.
+	FirewallFor func(name string) firewall.Firewall
+	DNSCheck    func(ctx context.Context, domain string) netinfo.DNSResult
+	CertWait    time.Duration // how long create waits for a certificate
 
 	FirstStart  func(context.Context, sharkord.FirstStartOpts) (string, error)
 	WaitHealthy func(ctx context.Context, port int, timeout time.Duration) error
@@ -79,7 +86,7 @@ type Sys struct {
 // New makes a Sys for the real system.
 func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string) *Sys {
 	p := DefaultPaths()
-	return &Sys{
+	s := &Sys{
 		Paths:       p,
 		R:           r,
 		St:          st,
@@ -87,6 +94,8 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		Systemd:     systemd.Systemd{R: r},
 		Sharkord:    sharkord.NewClient(userAgent, filepath.Join(p.CacheDir, "sharkord-releases.json")),
 		Log:         log,
+		Caddy:       caddy.New(r, paths.CaddyGlobalFile),
+		CertWait:    2 * time.Minute,
 		FirstStart:  sharkord.FirstStart,
 		WaitHealthy: sharkord.WaitHealthy,
 		PublicIPv4: func(ctx context.Context) (string, error) {
@@ -98,6 +107,10 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		OwnerOf:  fsutil.OwnerOf,
 		Now:      time.Now,
 	}
+	s.DNSCheck = func(ctx context.Context, domain string) netinfo.DNSResult {
+		return netinfo.CheckDNS(ctx, domain, s.St.Settings.PublicIPv4, netinfo.LocalIPv6())
+	}
+	return s
 }
 
 func (s *Sys) emit(e Event) {

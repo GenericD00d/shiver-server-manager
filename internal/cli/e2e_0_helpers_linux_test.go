@@ -19,6 +19,16 @@ import (
 	"testing"
 )
 
+// e2eSetupFlags answers setup's questions and points Caddy at Pebble
+// (SSM_ACME_CA, SSM_ACME_CA_ROOT) when CI runs one.
+func e2eSetupFlags() []string {
+	f := []string{"--yes"}
+	if ca := os.Getenv("SSM_ACME_CA"); ca != "" {
+		f = append(f, "--acme-ca", ca, "--acme-ca-root", os.Getenv("SSM_ACME_CA_ROOT"))
+	}
+	return f
+}
+
 // Vault passphrases: the login test sets pass1, then changes it to pass2.
 const e2ePass1, e2ePass2 = "first vault passphrase", "second vault passphrase"
 

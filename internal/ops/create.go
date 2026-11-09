@@ -145,6 +145,9 @@ func (s *Sys) createSteps(id string) []Step {
 		s.stepFiles(id),
 		s.stepFirstStart(id),
 		s.stepService(id),
+		s.stepFirewall(id),
+		s.stepSite(id),
+		s.stepCertificate(id),
 		{
 			Name: "active",
 			Done: func(context.Context) (bool, error) {

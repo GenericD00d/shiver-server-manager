@@ -44,19 +44,32 @@ jobs:
           sudo systemctl daemon-reload
         env:
           SSM_PAM_PASSWORD: Ci-Only-Passw0rd
+      - name: Start Pebble (Let's Encrypt's test server)
+        run: |
+          git clone -q --depth 1 --branch v2.10.1 https://github.com/letsencrypt/pebble /tmp/pebble
+          cd /tmp/pebble && go build -o pebble ./cmd/pebble
+          PEBBLE_VA_ALWAYS_VALID=1 PEBBLE_WFE_NONCEREJECT=0 nohup ./pebble -config test/config/pebble-config.json > /tmp/pebble.log 2>&1 &
+          echo "127.0.0.1 chat-a.example.com chat-b.example.com chat-c.example.com" | sudo tee -a /etc/hosts
+          for i in $(seq 30); do curl -sfk https://localhost:14000/dir >/dev/null && break; sleep 1; done
+          curl -sfk https://localhost:14000/dir
       - name: PAM and end-to-end tests (as root)
         run: |
           go test -c -o auth.test ./internal/auth
           go test -c -o cli.test ./internal/cli
           sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./auth.test -test.run 'TestPAM' -test.v
-          sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./cli.test -test.run 'TestE2E' -test.v -test.timeout 30m
+          sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN,SSM_ACME_CA,SSM_ACME_CA_ROOT,SSM_PEBBLE_ROOTS ./cli.test -test.run 'TestE2E' -test.v -test.timeout 30m
         env:
           SSM_PAM_ADMIN: ssm-admin
           SSM_PAM_OUTSIDER: ssm-outsider
           SSM_PAM_PASSWORD: Ci-Only-Passw0rd
           SSM_E2E_BIN: /usr/local/bin/shiver-server-manager
+          SSM_ACME_CA: https://localhost:14000/dir
+          SSM_ACME_CA_ROOT: /tmp/pebble/test/certs/pebble.minica.pem
+          SSM_PEBBLE_ROOTS: https://localhost:15000/roots/0
       - name: Show what the manager logged
         if: always()
         run: |
           sudo cat /var/log/shiver-server-manager.log || true
           sudo journalctl -u 'sharkord@*' --no-pager -n 200 || true
+          sudo journalctl -u caddy --no-pager -n 100 || true
+          cat /tmp/pebble.log || true

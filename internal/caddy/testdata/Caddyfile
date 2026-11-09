@@ -1,0 +1,6 @@
+# Managed by shiver-server-manager
+{
+	import /etc/caddy/shiver-server-manager/global.caddy
+}
+
+import /etc/caddy/sites/*.caddy
