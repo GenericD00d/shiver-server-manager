@@ -26,3 +26,30 @@ jobs:
       - run: go test -race ./...
       - run: CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=ci" ./cmd/shiver-server-manager
       - run: ./shiver-server-manager version
+      - name: Check the sudoers file
+        run: sudo visudo -cf packaging/sudoers
+
+      # Below here changes the runner's system: a real PAM service, test
+      # accounts, and the manager's folders. The runner is thrown away after.
+      - name: Test accounts and PAM service
+        run: |
+          sudo install -m 644 packaging/pam /etc/pam.d/shiver-server-manager
+          sudo groupadd --system shiver-admins
+          sudo useradd -m -G shiver-admins ssm-admin
+          sudo useradd -m ssm-outsider
+          echo "ssm-admin:$SSM_PAM_PASSWORD" | sudo chpasswd
+          echo "ssm-outsider:$SSM_PAM_PASSWORD" | sudo chpasswd
+          sudo install -m 755 -o root -g root shiver-server-manager /usr/local/bin/shiver-server-manager
+        env:
+          SSM_PAM_PASSWORD: Ci-Only-Passw0rd
+      - name: PAM and end-to-end tests (as root)
+        run: |
+          go test -c -o auth.test ./internal/auth
+          go test -c -o cli.test ./internal/cli
+          sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./auth.test -test.run 'TestPAM' -test.v
+          sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./cli.test -test.run 'TestE2E' -test.v
+        env:
+          SSM_PAM_ADMIN: ssm-admin
+          SSM_PAM_OUTSIDER: ssm-outsider
+          SSM_PAM_PASSWORD: Ci-Only-Passw0rd
+          SSM_E2E_BIN: /usr/local/bin/shiver-server-manager

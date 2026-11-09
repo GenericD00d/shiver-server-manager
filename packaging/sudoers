@@ -1,0 +1,2 @@
+# Managed by shiver-server-manager
+%shiver-admins ALL=(root) NOPASSWD: /usr/bin/shiver-server-manager

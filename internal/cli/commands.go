@@ -20,10 +20,10 @@ func group(use, short string, children ...*cobra.Command) *cobra.Command {
 	return c
 }
 
-func addCommands(root *cobra.Command) {
+func (a *App) addCommands(root *cobra.Command) {
 	one, none := cobra.ExactArgs(1), cobra.NoArgs
 
-	setup := stub("setup", "First-time setup: check the system and install what's needed", none)
+	setup := a.setupCmd()
 
 	create := stub("create", "Create a server", none)
 	create.Flags().String("id", "", "server ID: lowercase letters, digits and hyphens, starting with a letter, up to 20 characters")
@@ -116,17 +116,9 @@ func addCommands(root *cobra.Command) {
 		stub("repair", "Add missing rules and remove leftovers", none),
 	)
 
-	vault := group("vault", "The vault for secrets",
-		stub("unlock", "Unlock the vault and any encrypted servers", none),
-		stub("change-passphrase", "Change the vault passphrase", none),
-		stub("recover", "Open the vault with the recovery key and set a new passphrase", none),
-	)
+	vault := a.vaultCmd()
 
-	admins := group("admins", "Who can use the manager",
-		stub("list", "List admins", none),
-		stub("add <user>", "Add an existing OS user as an admin", one),
-		stub("remove <user>", "Remove an admin", one),
-	)
+	admins := a.adminsCmd()
 
 	health := stub("health", "Run the health check", none)
 	health.Flags().Bool("unattended", false, "run from the timer: no login, no prompts")

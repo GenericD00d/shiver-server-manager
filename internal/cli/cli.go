@@ -13,9 +13,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/GenericD00d/shiver-server-manager/internal/actionlog"
+	"github.com/GenericD00d/shiver-server-manager/internal/auth"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
+	"github.com/GenericD00d/shiver-server-manager/internal/run"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 	"github.com/GenericD00d/shiver-server-manager/internal/sysenv"
+	"github.com/GenericD00d/shiver-server-manager/internal/vault"
 )
 
 // Exit codes.
@@ -58,12 +62,18 @@ type App struct {
 	Globals Globals
 	Out     io.Writer
 	Err     io.Writer
+	In      *os.File // stdin; prompts read it as a terminal or line by line
+
+	log     *actionlog.Logger
+	runner  run.Runner
+	session *auth.Session
+	term    *termIO
 }
 
 // Main runs the manager and returns its exit code.
 func Main(version string, args []string) int {
 	env := sysenv.Setup()
-	app := &App{Version: version, Env: env, Out: os.Stdout, Err: os.Stderr}
+	app := &App{Version: version, Env: env, Out: os.Stdout, Err: os.Stderr, In: os.Stdin}
 	return app.Execute(args)
 }
 
@@ -88,11 +98,16 @@ func (a *App) Execute(args []string) int {
 func exitCode(err error) int {
 	var ce *ExitCodeError
 	var held *state.HeldError
+	var throttled *auth.ThrottledError
 	switch {
 	case errors.As(err, &ce):
 		return ce.Code
 	case errors.As(err, &held):
 		return ExitLocked
+	case errors.Is(err, auth.ErrBadLogin), errors.Is(err, auth.ErrNotAdmin), errors.As(err, &throttled),
+		errors.Is(err, vault.ErrWrongPassphrase), errors.Is(err, vault.ErrWrongRecoveryKey),
+		errors.Is(err, vault.ErrBadRecoveryFormat), errors.Is(err, errNoTerminal):
+		return ExitAuth
 	// cobra's own argument and command errors have no type to match.
 	case strings.HasPrefix(err.Error(), "unknown command"),
 		strings.HasPrefix(err.Error(), "accepts "),
@@ -125,7 +140,14 @@ func (a *App) newRoot() *cobra.Command {
 			if !sysenv.IsRoot() {
 				return fmt.Errorf("%s needs root; run it with sudo: sudo %s", paths.Cmd, paths.Cmd)
 			}
-			return sysenv.CheckOwnership()
+			if err := sysenv.CheckOwnership(); err != nil {
+				return err
+			}
+			a.log = actionlog.New(paths.LogFile)
+			exec := &run.Exec{Log: a.log.Line}
+			a.runner = exec
+			a.term = newTermIO(a, exec)
+			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("the menu is %w; run '%s --help' for commands", errNotBuilt, paths.Cmd)
@@ -141,7 +163,7 @@ func (a *App) newRoot() *cobra.Command {
 	pf.BoolVar(&a.Globals.PassphraseStdin, "passphrase-stdin", false, "read the vault or export passphrase from stdin")
 
 	root.AddCommand(a.versionCmd())
-	addCommands(root)
+	a.addCommands(root)
 	return root
 }
 
