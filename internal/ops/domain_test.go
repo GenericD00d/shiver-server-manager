@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/GenericD00d/shiver-server-manager/internal/netinfo"
 )
 
 func TestChangeDomain(t *testing.T) {
@@ -67,5 +69,47 @@ func TestLimits(t *testing.T) {
 	}
 	if _, err := os.Stat(limits); err == nil {
 		t.Fatal("limits.conf left after removing the caps")
+	}
+}
+
+func TestSkipDNSCheckForAProxy(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.s.DNSCheck = func(_ context.Context, d string) netinfo.DNSResult {
+		return netinfo.DNSResult{Domain: d, Problem: d + " points at 198.51.100.9 (the proxy), not this server"}
+	}
+	var notes []string
+	h.s.Progress = func(e Event) {
+		if e.Status == "note" {
+			notes = append(notes, e.Detail)
+		}
+	}
+	if err := h.s.Create(ctx, req("plain")); err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) == 0 || !strings.Contains(strings.Join(notes, " "), "points at") {
+		t.Fatalf("no DNS warning without the option: %q", notes)
+	}
+	if _, err := h.s.RetryCert(ctx, "plain"); err == nil {
+		t.Fatal("retry ignored the DNS problem")
+	}
+
+	notes = nil
+	r := req("proxied")
+	r.SkipDNSCheck = true
+	if err := h.s.Create(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(notes, " "), "points at") {
+		t.Fatalf("DNS checked anyway: %q", notes)
+	}
+	if !h.s.St.Instances["proxied"].SkipDNSCheck {
+		t.Fatal("the option wasn't kept in the record")
+	}
+	if _, err := h.s.RetryCert(ctx, "proxied"); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if err := h.s.ChangeDomain(ctx, "proxied", "new.example.com", false); err != nil {
+		t.Fatalf("change domain: %v", err)
 	}
 }

@@ -37,7 +37,7 @@ func (s *Sys) ChangeDomain(ctx context.Context, id, domain string, force bool) e
 			return fmt.Errorf("server %q already uses %s", other, d)
 		}
 	}
-	if inst.TLS == state.TLSLetsEncrypt && s.St.Settings.ACMECA == "" && s.DNSCheck != nil && !force {
+	if s.wantDNSCheck(inst) && !force {
 		if r := s.DNSCheck(ctx, d); !r.OK {
 			return fmt.Errorf("%s (use --force to change anyway; the certificate will wait until DNS is right)", r.Problem)
 		}

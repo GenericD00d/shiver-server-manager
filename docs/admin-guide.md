@@ -39,7 +39,7 @@ The first run asks to run setup (System > First-time setup, or `setup`). It's sa
 10. On a desktop, offers to keep the computer awake.
 11. Sets the vault passphrase and shows the **recovery key once**. Write it down or keep it in a password manager, away from the server: it's the only way back into the vault and every backup if the passphrase is lost.
 
-Useful options: `--email` (Let's Encrypt expiry mails), `--public-ip` (set the address by hand, or `auto`), `--container-size` (GiB for each new encrypted container, default 10), `--no-firewall`.
+Useful options: `--email` (Let's Encrypt expiry mails), `--public-ip` (set the address by hand, or `auto`), `--data-location` (the default folder for new and imported servers' data, instead of `/var/lib/sharkord`), `--container-size` (GiB for each new encrypted container, default 10), `--no-firewall`.
 
 ## Logging in
 
@@ -78,7 +78,7 @@ That puts a root-level control panel on the internet behind your OS password, so
 
 | Action | What it does |
 | --- | --- |
-| Create a server | Asks for an ID, a domain and a certificate type; everything else has a default. Downloads Sharkord (checked against its release's checksums), creates the server's system user, encrypted container, files and service, saves the secret token in the vault, opens its voice port, writes its Caddy site and waits up to two minutes for its certificate. |
+| Create a server | Asks for an ID, a domain and a certificate type; everything else has a default. If the domain points at a proxy in front of the server (so its A record holds the proxy's address), say so and the DNS check is skipped (`--skip-dns-check`); self-signed servers never check DNS. Downloads Sharkord (checked against its release's checksums), creates the server's system user, encrypted container, files and service, saves the secret token in the vault, opens its voice port, writes its Caddy site and waits up to two minutes for its certificate. |
 | Import a server | From an export, a backup, a Sharkord data folder (`~/.config/sharkord` of a plain install) or `docker:<container>`. A running source is copied while it runs, then you're asked to stop it for a short final copy. Settings in its `config.ini` can be carried over. You're asked for its secret token. |
 | Export a server | An encrypted file (its own passphrase) to move the server elsewhere; the server keeps running. The secret token goes inside only if you ask. |
 | Start, Stop, Restart | One server or all. A server you stop stays stopped: repair and the health check leave it alone. |
@@ -108,6 +108,8 @@ Show the manager's rules, repair them, and **router port mapping** (UPnP, opt-in
 Admins (add existing OS accounts, remove them; the last admin can't be removed), unlock the vault, change its passphrase, recover it with the recovery key, grow an encrypted server's storage, health alerts.
 
 ### 6. Storage
+
+New and imported servers get their data folder in the **default location** (`/var/lib/sharkord` unless you change it). To use another folder, add it and make it the default in one step: `storage add /srv/data/sharkord --default` (or Storage > Add a folder with "Make it the default" on the web page). The create and import forms also let you pick a location for one server.
 
 Storage locations (the default is `/var/lib/sharkord`), adding a folder on another drive, mounting a newly formatted drive permanently, moving a server between locations, the backup location and the default location. Only ext4, XFS and Btrfs drives listed in `/etc/fstab` are accepted, never `noexec` mounts.
 

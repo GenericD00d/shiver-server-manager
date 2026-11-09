@@ -276,6 +276,7 @@ func (a *App) importCmd() *cobra.Command {
 	f.StringVar(&r.Location, "location", "", "storage location (default: the default location)")
 	f.StringVar(&tls, "tls", "", "certificate type (default: the export's, or letsencrypt)")
 	f.BoolVar(&noEncrypt, "no-encrypt", false, "don't put the data folder in an encrypted container")
+	f.BoolVar(&r.SkipDNSCheck, "skip-dns-check", false, "don't check the domain points here (it points at a proxy in front of the server)")
 	_ = c.MarkFlagRequired("id")
 	_ = c.MarkFlagRequired("domain")
 	return c

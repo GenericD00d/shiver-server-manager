@@ -1,7 +1,7 @@
 import { Ellipsis, Eye, Import, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { PageProps } from '../App';
-import { useActions, type ActionSpec } from '../actions';
+import { useActions, type ActionSpec, type Field } from '../actions';
 import { api, ApiError, type Health, type Server } from '../api';
 import { Problem, Reload, Section, StateBadge, Table, Td, Notices } from '../common';
 import { Button } from '../components/button';
@@ -27,6 +27,23 @@ export function ServersPage({ meta }: PageProps) {
   const { run, jobsChanged } = useActions();
   const servers = useData<Server[]>('servers', jobsChanged);
   const health = useData<Health>('health', jobsChanged);
+  const storage = useData<{ locations: { path: string; default?: boolean }[] }>('storage', jobsChanged);
+  const locations = storage.data?.locations ?? [];
+  const defaultLocation = locations.find((l) => l.default)?.path ?? '';
+  const locationField: Field = {
+    name: 'location',
+    label: 'Storage location',
+    type: 'select',
+    initial: defaultLocation,
+    options: locations.map((l) => ({ value: l.path, label: l.default ? `${l.path} (default)` : l.path })),
+    help: 'Where its data lives. Change the default, or add folders on other drives, on the Storage page.'
+  };
+  const skipDNS: Field = {
+    name: 'skipDnsCheck',
+    label: 'The domain points at a proxy in front of this server',
+    type: 'switch',
+    help: "Skips the check that the domain's A record holds this server's address. Self-signed servers never check."
+  };
   const [tokenFor, setTokenFor] = useState<string | null>(null);
 
   const createSpec: ActionSpec = {
@@ -37,7 +54,9 @@ export function ServersPage({ meta }: PageProps) {
       { name: 'id', label: 'Server ID', required: true, help: 'Lowercase letters, digits and hyphens, starting with a letter; up to 20.' },
       { name: 'domain', label: 'Domain', required: true, placeholder: 'chat.example.com' },
       { name: 'tls', label: 'Certificate', type: 'select', options: tlsOptions, initial: 'letsencrypt', required: true },
-      { name: 'encrypt', label: 'Encrypted data folder', type: 'switch', initial: 'true', help: 'Protects a stolen disk; after a reboot, the server waits for the vault to be unlocked.' }
+      ...(locations.length > 1 ? [locationField] : []),
+      { name: 'encrypt', label: 'Encrypted data folder', type: 'switch', initial: 'true', help: 'Protects a stolen disk; after a reboot, the server waits for the vault to be unlocked.' },
+      skipDNS
     ]
   };
   const importSpec: ActionSpec = {
@@ -48,9 +67,18 @@ export function ServersPage({ meta }: PageProps) {
       { name: 'source', label: 'Import from', required: true, placeholder: '/root/chat.tar.zst.age, /home/me/.config/sharkord or docker:sharkord' },
       { name: 'id', label: 'New server ID', required: true },
       { name: 'domain', label: 'Domain', required: true },
+      {
+        name: 'tls',
+        label: 'Certificate',
+        type: 'select',
+        initial: 'same',
+        options: [{ value: 'same', label: "The same as the export (or Let's Encrypt)" }, ...tlsOptions]
+      },
+      ...(locations.length > 1 ? [locationField] : []),
       { name: 'passphrase', label: "Export's passphrase (or the vault's, for a backup)", type: 'password' },
       { name: 'token', label: "The old server's secret token (optional)", type: 'password', help: 'An export with the token inside doesn’t need it.' },
-      { name: 'encrypt', label: 'Encrypted data folder', type: 'switch', initial: 'true' }
+      { name: 'encrypt', label: 'Encrypted data folder', type: 'switch', initial: 'true' },
+      skipDNS
     ]
   };
 

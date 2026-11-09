@@ -96,6 +96,9 @@ type Instance struct {
 	// Stopped is set when an admin stops the instance, so repair and the
 	// health check don't start it again.
 	Stopped bool `json:"stopped,omitempty"`
+	// SkipDNSCheck is for a domain whose A record points at a proxy in
+	// front of the server, so the "does it point here?" check would be wrong.
+	SkipDNSCheck bool `json:"skipDNSCheck,omitempty"`
 	// Resource caps; 0 means none.
 	MemoryMaxMiB int        `json:"memoryMaxMiB,omitempty"`
 	CPUPercent   int        `json:"cpuPercent,omitempty"`

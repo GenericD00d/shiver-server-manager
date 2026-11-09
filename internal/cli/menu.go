@@ -84,6 +84,7 @@ func (h menuHost) Snapshot() (tui.Snapshot, error) {
 		for _, l := range s.St.Settings.Locations {
 			snap.Locations = append(snap.Locations, l.Path)
 		}
+		snap.DefaultLocation = s.St.DefaultLocation()
 		for _, n := range ops.LoadReport(s.Paths.HealthFile).Notices {
 			if n.Level != "info" || strings.HasPrefix(n.Key, "locked") {
 				snap.Notices = append(snap.Notices, n.Message)

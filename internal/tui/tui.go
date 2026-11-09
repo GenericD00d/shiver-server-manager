@@ -32,6 +32,8 @@ type Snapshot struct {
 	Backups   map[string][]string // server -> backup files, newest last
 	Settings  []string            // setting names the menu offers
 	Locations []string
+	// DefaultLocation is where new and imported servers go.
+	DefaultLocation string
 }
 
 // Host is the manager underneath: the CLI app.

@@ -15,6 +15,12 @@ import (
 // LetsEncryptCA is Let's Encrypt's production directory.
 const LetsEncryptCA = "https://acme-v02.api.letsencrypt.org/directory"
 
+// wantDNSCheck: only Let's Encrypt needs the domain pointing here, and not
+// when it points at a proxy in front of the server, or with a test CA.
+func (s *Sys) wantDNSCheck(inst *state.Instance) bool {
+	return inst.TLS == state.TLSLetsEncrypt && !inst.SkipDNSCheck && s.St.Settings.ACMECA == "" && s.DNSCheck != nil
+}
+
 // Firewall returns the backend chosen at setup.
 func (s *Sys) Firewall() firewall.Firewall {
 	if s.FirewallFor != nil {
@@ -102,7 +108,7 @@ func (s *Sys) stepCertificate(id string) Step {
 		Do: func(ctx context.Context) error {
 			defer func() { waited = true }()
 			inst := s.St.Instances[id]
-			if inst.TLS == state.TLSLetsEncrypt && s.St.Settings.ACMECA == "" && s.DNSCheck != nil {
+			if s.wantDNSCheck(inst) {
 				if r := s.DNSCheck(ctx, inst.Domain); !r.OK {
 					s.emit(Event{Instance: id, Step: "certificate", Status: "note", Detail: r.Problem})
 				}
@@ -169,7 +175,7 @@ func (s *Sys) RetryCert(ctx context.Context, id string) (netinfo.DNSResult, erro
 		return netinfo.DNSResult{}, err
 	}
 	var r netinfo.DNSResult
-	if inst.TLS == state.TLSLetsEncrypt && s.St.Settings.ACMECA == "" && s.DNSCheck != nil {
+	if s.wantDNSCheck(inst) {
 		r = s.DNSCheck(ctx, inst.Domain)
 		if !r.OK {
 			return r, fmt.Errorf("%s", r.Problem)

@@ -26,7 +26,7 @@ export function StoragePage() {
     <>
       <Section
         title="Storage locations"
-        description="Folders on drives that come back after a reboot (listed in /etc/fstab), formatted ext4, XFS or Btrfs, never noexec."
+        description="Where servers keep their data. New and imported servers go to the default one. Folders must be on drives that come back after a reboot (listed in /etc/fstab), formatted ext4, XFS or Btrfs, never noexec."
         actions={
           <>
             <Reload onClick={storage.reload} loading={storage.loading} />
@@ -36,7 +36,10 @@ export function StoragePage() {
                 run({
                   action: 'storage.add',
                   title: 'Add a storage location',
-                  fields: [{ name: 'path', label: 'Folder', required: true, placeholder: '/srv/disk2/sharkord' }]
+                  fields: [
+                    { name: 'path', label: 'Folder', required: true, placeholder: '/srv/disk2/sharkord' },
+                    { name: 'makeDefault', label: 'Make it the default', type: 'switch', help: 'New and imported servers then get their data folder here.' }
+                  ]
                 })
               }
             >

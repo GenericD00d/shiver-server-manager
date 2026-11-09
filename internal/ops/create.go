@@ -22,13 +22,15 @@ import (
 // CreateRequest is what "Create instance" asks for; everything else has a
 // default.
 type CreateRequest struct {
-	ID        string
-	Domain    string
-	TLS       state.TLS
-	TestMode  bool
-	Location  string // "" means the default location
-	Encrypted bool
-	Version   string // "" means the newest tested version
+	ID       string
+	Domain   string
+	TLS      state.TLS
+	TestMode bool
+	// SkipDNSCheck: the domain points at a proxy in front of the server.
+	SkipDNSCheck bool
+	Location     string // "" means the default location
+	Encrypted    bool
+	Version      string // "" means the newest tested version
 }
 
 // CheckCreate validates a request against the records and fills defaults.
@@ -126,6 +128,7 @@ func (s *Sys) Create(ctx context.Context, req CreateRequest) error {
 		HTTPPort:        httpPort,
 		WebRTCPort:      rtcPort,
 		Encrypted:       req.Encrypted,
+		SkipDNSCheck:    req.SkipDNSCheck,
 		CreatedAt:       s.Now().UTC(),
 		Operation:       &state.Operation{Name: OpCreate, LastStep: "record", StartedAt: s.Now().UTC()},
 	}

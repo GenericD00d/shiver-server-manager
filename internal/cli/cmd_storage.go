@@ -49,15 +49,28 @@ func (a *App) storageCmd() *cobra.Command {
 			})
 		},
 	}
+	var makeDefault bool
 	add := &cobra.Command{
 		Use: "add <path>", Short: "Add a folder as a storage location", Args: cobra.ExactArgs(1),
 		Long: "The folder's drive must be ext4, XFS or Btrfs, not mounted noexec, and listed in /etc/fstab (or be the system drive), so it comes back after a reboot.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
-				return a.logged("storage add", "", func() error { return a.addLocation(cmd, s, args[0]) })
+				return a.logged("storage add", "", func() error {
+					if err := a.addLocation(cmd, s, args[0]); err != nil {
+						return err
+					}
+					if makeDefault {
+						if err := s.SetDefaultLocation(args[0]); err != nil {
+							return err
+						}
+						a.say("✓ New and imported servers now go to %s", args[0])
+					}
+					return nil
+				})
 			})
 		},
 	}
+	add.Flags().BoolVar(&makeDefault, "default", false, "also make it the default for new and imported servers")
 	mount := &cobra.Command{
 		Use: "mount [<device>]", Short: "Mount a formatted drive permanently and add a location on it", Args: cobra.MaximumNArgs(1),
 		Long: "With no device, lists formatted drives that aren't mounted. Formatting a new drive is a step outside the manager; see Help, \"Add a new drive for Sharkord data\".",

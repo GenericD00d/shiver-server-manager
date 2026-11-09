@@ -48,6 +48,7 @@ type setupFlags struct {
 	noFirewall   bool
 	publicIP     string
 	containerGiB int
+	dataLocation string
 }
 
 func (a *App) setupCmd() *cobra.Command {
@@ -86,6 +87,7 @@ func (a *App) setupCmd() *cobra.Command {
 	c.Flags().StringVar(&f.acmeCA, "acme-ca", "", "use this ACME server instead of Let's Encrypt (testing)")
 	c.Flags().StringVar(&f.acmeCARoot, "acme-ca-root", "", "root certificate of the --acme-ca server (testing)")
 	c.Flags().StringVar(&f.publicIP, "public-ip", "", "use this public IPv4 address instead of looking it up (\"auto\" to look it up again)")
+	c.Flags().StringVar(&f.dataLocation, "data-location", "", "default folder for new and imported servers' data (default /var/lib/sharkord)")
 	c.Flags().IntVar(&f.containerGiB, "container-size", 0, "size in GiB of each new encrypted container (default 10)")
 	c.Flags().BoolVar(&f.noFirewall, "no-firewall", false, "don't switch on ufw if no firewall is active")
 	_ = c.Flags().MarkHidden("acme-ca")
@@ -284,6 +286,23 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 			}
 		}
 	}
+
+	if f.dataLocation != "" {
+		p := filepath.Clean(f.dataLocation)
+		known := false
+		for _, l := range st.Settings.Locations {
+			known = known || l.Path == p
+		}
+		if !known {
+			if _, err := s.AddLocation(ctx, p); err != nil {
+				return err
+			}
+		}
+		if err := s.SetDefaultLocation(p); err != nil {
+			return err
+		}
+	}
+	a.ok("New and imported servers' data goes to %s", st.DefaultLocation())
 
 	v := a.vault()
 	if v.Exists() {

@@ -172,7 +172,7 @@ func (s *Sys) Import(ctx context.Context, r ImportRequest, hooks ImportHooks) er
 	s.St.Instances[r.ID] = &state.Instance{
 		Status: state.StatusCreating, Domain: r.Domain, TLS: r.TLS, TestMode: r.TestMode,
 		SharkordVersion: r.Version, Location: r.Location, DataPath: filepath.Join(r.Location, r.ID),
-		HTTPPort: httpPort, WebRTCPort: rtcPort, Encrypted: r.Encrypted, Settings: settings,
+		HTTPPort: httpPort, WebRTCPort: rtcPort, Encrypted: r.Encrypted, Settings: settings, SkipDNSCheck: r.SkipDNSCheck,
 		CreatedAt: s.Now().UTC(),
 		Operation: &state.Operation{Name: OpImport, LastStep: "record", StartedAt: s.Now().UTC()},
 	}

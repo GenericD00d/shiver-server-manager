@@ -159,6 +159,7 @@ var Actions = map[string]Action{
 		args := []string{"instance", "create", "--id", c.id("id"), "--domain", c.domain("domain"), "--tls", c.enum("tls", "letsencrypt", "selfsigned")}
 		args = append(args, when(!c.flag("encrypt"), "--no-encrypt")...)
 		args = append(args, when(c.flag("testMode"), "--test-mode")...)
+		args = append(args, when(c.flag("skipDnsCheck"), "--skip-dns-check")...)
 		if loc := c.absPath("location", false); loc != "" {
 			args = append(args, "--location", loc)
 		}
@@ -167,7 +168,8 @@ var Actions = map[string]Action{
 	"server.import": {Title: "Import a server", Build: func(c *checker) ([]string, []string) {
 		args := []string{"import", c.line("source", true), "--id", c.id("id"), "--domain", c.domain("domain")}
 		args = append(args, when(!c.flag("encrypt"), "--no-encrypt")...)
-		if t := c.raw("tls"); t != "" {
+		args = append(args, when(c.flag("skipDnsCheck"), "--skip-dns-check")...)
+		if t := c.raw("tls"); t != "" && t != "same" {
 			args = append(args, "--tls", c.enum("tls", "letsencrypt", "selfsigned"))
 		}
 		if loc := c.absPath("location", false); loc != "" {
@@ -239,7 +241,9 @@ var Actions = map[string]Action{
 	"vault.recover": {Title: "Recover the vault", Reauth: true, Build: func(c *checker) ([]string, []string) {
 		return []string{"vault", "recover"}, []string{c.secret("recoveryKey", true), c.secret("newPassphrase", true)}
 	}},
-	"storage.add": {Title: "Add a location", Build: func(c *checker) ([]string, []string) { return []string{"storage", "add", c.absPath("path", true)}, nil }},
+	"storage.add": {Title: "Add a location", Build: func(c *checker) ([]string, []string) {
+		return append([]string{"storage", "add", c.absPath("path", true)}, when(c.flag("makeDefault"), "--default")...), nil
+	}},
 	"storage.mount": {Title: "Add a drive", Build: func(c *checker) ([]string, []string) {
 		return []string{"storage", "mount", c.absPath("device", true)}, nil
 	}},

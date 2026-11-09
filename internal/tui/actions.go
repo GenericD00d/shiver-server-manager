@@ -121,25 +121,42 @@ func plain(title, desc string, args ...string) Action {
 // Sections are the menu, as laid out in the checklist.
 var Sections = []Section{
 	{"Servers", "create, import, export, start/stop, settings, logs, update, back up, restore, delete, Shiver", []Action{
-		{Title: "Create a server", Desc: "a name, a domain and a certificate type", Form: func(Snapshot) ([]string, bool, error) {
+		{Title: "Create a server", Desc: "a name, a domain and a certificate type", Form: func(snap Snapshot) ([]string, bool, error) {
 			var id, domain, tls = "", "", "letsencrypt"
 			ok, err := run(
 				input("Server ID", "lowercase letters, digits and hyphens, starting with a letter; up to 20", &id, validate.InstanceID),
-				input("Domain", "the address members will use; its A record must point at this server ("+"see Help: Point a domain at the server)", &domain, domainCheck),
+				input("Domain", "the address members will use; its A record must point at this server (see Help: Point a domain at the server)", &domain, domainCheck),
 				huh.NewSelect[string]().Title("Certificate").Options(
 					huh.NewOption("Let's Encrypt (trusted everywhere; needs ports 80 and 443 open)", "letsencrypt"),
 					huh.NewOption("Self-signed (members install a root certificate)", "selfsigned")).Value(&tls),
 			)
-			return []string{"instance", "create", "--id", id, "--domain", domain, "--tls", tls}, ok, err
+			if !ok || err != nil {
+				return nil, ok, err
+			}
+			args := []string{"instance", "create", "--id", id, "--domain", domain, "--tls", tls}
+			more, ok, err := placeAndProxy(snap, tls != "selfsigned")
+			return append(args, more...), ok, err
 		}, Confirm: "Create the server (%[4]s at %[6]s)?"},
-		{Title: "Import a server", Desc: "from an export, a backup, a Sharkord data folder, or docker:<container>", Form: func(Snapshot) ([]string, bool, error) {
-			var src, id, domain string
+		{Title: "Import a server", Desc: "from an export, a backup, a Sharkord data folder, or docker:<container>", Form: func(snap Snapshot) ([]string, bool, error) {
+			var src, id, domain, tls = "", "", "", "same"
 			ok, err := run(
 				input("Import from", "an export or backup file, a data folder such as /home/me/.config/sharkord, or docker:<container>", &src, nonEmpty),
 				input("New server ID", "", &id, validate.InstanceID),
 				input("Domain", "", &domain, domainCheck),
+				huh.NewSelect[string]().Title("Certificate").Options(
+					huh.NewOption("The same as the export (or Let's Encrypt)", "same"),
+					huh.NewOption("Let's Encrypt", "letsencrypt"),
+					huh.NewOption("Self-signed (members install a root certificate)", "selfsigned")).Value(&tls),
 			)
-			return []string{"import", src, "--id", id, "--domain", domain}, ok, err
+			if !ok || err != nil {
+				return nil, ok, err
+			}
+			args := []string{"import", src, "--id", id, "--domain", domain}
+			if tls != "same" {
+				args = append(args, "--tls", tls)
+			}
+			more, ok, err := placeAndProxy(snap, tls != "selfsigned")
+			return append(args, more...), ok, err
 		}},
 		{Title: "Export a server", Desc: "to an encrypted file, to move it elsewhere", Form: func(snap Snapshot) ([]string, bool, error) {
 			id, ok, err := pickServer(snap, "Export which server?", false)
@@ -426,4 +443,40 @@ func (p pager) View() tea.View {
 	v := tea.NewView(body + "\n" + grey.Render(fmt.Sprintf("lines %d-%d of %d · ↑/↓ pgup/pgdn scroll · q back", p.top+1, end, len(p.lines))))
 	v.AltScreen = true
 	return v
+}
+
+// placeAndProxy asks where a new server's data goes (when there's more than
+// one storage location) and, for Let's Encrypt, whether its domain points at
+// a proxy in front of this server.
+func placeAndProxy(snap Snapshot, askProxy bool) ([]string, bool, error) {
+	var fields []huh.Field
+	loc := snap.DefaultLocation
+	if len(snap.Locations) > 1 {
+		var opts []huh.Option[string]
+		for _, l := range snap.Locations {
+			label := l
+			if l == snap.DefaultLocation {
+				label += " (default)"
+			}
+			opts = append(opts, huh.NewOption(label, l))
+		}
+		fields = append(fields, huh.NewSelect[string]().Title("Storage location").Options(opts...).Value(&loc))
+	}
+	proxy := false
+	if askProxy {
+		fields = append(fields, huh.NewConfirm().Title("Does the domain point at a proxy in front of this server?").
+			Description("If so, the check that its A record holds this server's address is skipped.").Affirmative("Yes").Negative("No").Value(&proxy))
+	}
+	if len(fields) == 0 {
+		return nil, true, nil
+	}
+	ok, err := run(fields...)
+	var args []string
+	if loc != "" && loc != snap.DefaultLocation {
+		args = append(args, "--location", loc)
+	}
+	if proxy {
+		args = append(args, "--skip-dns-check")
+	}
+	return args, ok, err
 }

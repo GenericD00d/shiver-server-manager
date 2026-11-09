@@ -144,6 +144,7 @@ func (a *App) instanceCreate() *cobra.Command {
 	f.BoolVar(&r.TestMode, "test-mode", false, "use Let's Encrypt's staging server")
 	f.StringVar(&r.Location, "location", "", "storage location (default: the default location)")
 	f.BoolVar(&noEncrypt, "no-encrypt", false, "don't put the data folder in an encrypted container")
+	f.BoolVar(&r.SkipDNSCheck, "skip-dns-check", false, "don't check the domain points here (it points at a proxy in front of the server)")
 	f.StringVar(&r.Version, "version", "", "Sharkord version (default: the newest tested one)")
 	_ = c.MarkFlagRequired("id")
 	_ = c.MarkFlagRequired("domain")
