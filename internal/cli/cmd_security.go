@@ -16,20 +16,9 @@ import (
 func (a *App) vaultCmd() *cobra.Command {
 	unlock := &cobra.Command{
 		Use:   "unlock",
-		Short: "Unlock the vault",
+		Short: "Unlock the vault, and start encrypted servers waiting since a reboot",
 		Args:  cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
-			if err := a.login(); err != nil {
-				return err
-			}
-			k, err := a.unlockVault()
-			if err != nil {
-				return err
-			}
-			defer k.Forget()
-			a.say("The vault is unlocked.")
-			return nil
-		},
+		RunE:  func(cmd *cobra.Command, _ []string) error { return a.unlockServers(cmd) },
 	}
 	change := &cobra.Command{
 		Use:   "change-passphrase",

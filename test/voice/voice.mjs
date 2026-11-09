@@ -43,7 +43,9 @@ const join = async (name) => {
     .getByTestId('channel-item')
     .filter({ has: page.getByText('General Voice', { exact: true }) })
     .first()
-    .click();
+    // aria-disabled there means "can't be dragged" (members can't reorder
+    // channels), not "can't be joined", so Playwright's check is skipped.
+    .click({ force: true });
   console.log(`${name} joined General Voice`);
   return page;
 };

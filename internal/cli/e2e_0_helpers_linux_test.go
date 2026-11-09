@@ -24,7 +24,7 @@ import (
 // e2eSetupFlags answers setup's questions and points Caddy at Pebble
 // (SSM_ACME_CA, SSM_ACME_CA_ROOT) when CI runs one.
 func e2eSetupFlags() []string {
-	f := []string{"--yes"}
+	f := []string{"--yes", "--container-size", "1"}
 	if ca := os.Getenv("SSM_ACME_CA"); ca != "" {
 		f = append(f, "--acme-ca", ca, "--acme-ca-root", os.Getenv("SSM_ACME_CA_ROOT"))
 	}

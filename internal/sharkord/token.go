@@ -173,3 +173,18 @@ func WaitHealthy(ctx context.Context, port int, timeout time.Duration) error {
 	}
 	return fmt.Errorf("the server didn't answer on port %d within %s: %v", port, timeout, last)
 }
+
+// IntegrityCheck runs PRAGMA integrity_check on a copy of the database.
+func IntegrityCheck(dataPath string) error {
+	var result string
+	err := withDBCopy(dataPath, func(db *sql.DB) error {
+		return db.QueryRow(`PRAGMA integrity_check`).Scan(&result)
+	})
+	if err != nil {
+		return fmt.Errorf("check %s: %w", DBPath(dataPath), err)
+	}
+	if result != "ok" {
+		return fmt.Errorf("the database at %s failed its integrity check: %s", DBPath(dataPath), result)
+	}
+	return nil
+}

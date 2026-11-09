@@ -70,6 +70,9 @@ type Operation struct {
 	FailedStep string    `json:"failedStep,omitempty"` // set when a step failed
 	Error      string    `json:"error,omitempty"`
 	StartedAt  time.Time `json:"startedAt"`
+	// Params are the operation's own inputs (a move's source and target),
+	// so a resumed operation rebuilds the same steps.
+	Params map[string]string `json:"params,omitempty"`
 }
 
 type Instance struct {

@@ -76,7 +76,7 @@ func (s *Sys) CheckCreate(req *CreateRequest) error {
 	if !known {
 		return fmt.Errorf("%s isn't a storage location; add it first", req.Location)
 	}
-	return nil
+	return s.checkRoom(req.Location, req.Encrypted, 0)
 }
 
 func testedList() string {
@@ -138,9 +138,14 @@ func (s *Sys) Create(ctx context.Context, req CreateRequest) error {
 // from the record, so a resumed create rebuilds them exactly.
 func (s *Sys) createSteps(id string) []Step {
 	inst := s.St.Instances[id]
-	return []Step{
+	steps := []Step{
 		s.stepUser(id, inst),
 		s.stepDownload(inst.SharkordVersion),
+	}
+	if inst.Encrypted {
+		steps = append(steps, s.stepContainer(id), s.stepMount(id))
+	}
+	return append(steps,
 		s.stepDataFolder(id, inst),
 		s.stepFiles(id),
 		s.stepFirstStart(id),
@@ -148,7 +153,7 @@ func (s *Sys) createSteps(id string) []Step {
 		s.stepFirewall(id),
 		s.stepSite(id),
 		s.stepCertificate(id),
-		{
+		Step{
 			Name: "active",
 			Done: func(context.Context) (bool, error) {
 				return s.St.Instances[id].Status == state.StatusActive, nil
@@ -158,7 +163,7 @@ func (s *Sys) createSteps(id string) []Step {
 				return nil
 			},
 		},
-	}
+	)
 }
 
 func (s *Sys) stepUser(id string, inst *state.Instance) Step {
@@ -208,8 +213,8 @@ func (s *Sys) stepDataFolder(id string, inst *state.Instance) Step {
 			return err == nil && ou == uid && og == gid && modeOK, err
 		},
 		Do: func(context.Context) error {
-			if inst.Encrypted {
-				return errors.New("encrypted data folders aren't built yet; create the server with --no-encrypt")
+			if inst.Encrypted && !s.LUKS.IsMounted(context.Background(), inst.DataPath) {
+				return errors.New("the encrypted container isn't mounted")
 			}
 			if _, err := os.Stat(inst.Location); err != nil {
 				return fmt.Errorf("storage location %s: %w", inst.Location, err)

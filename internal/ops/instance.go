@@ -35,6 +35,8 @@ type Info struct {
 	Active     string `json:"active"`
 	Healthy    bool   `json:"healthy"`
 	TokenSaved bool   `json:"tokenSaved"`
+	// Locked means an encrypted instance waits for the vault to be unlocked.
+	Locked bool `json:"locked"`
 }
 
 func (s *Sys) Info(ctx context.Context, id string) (Info, error) {
@@ -49,6 +51,7 @@ func (s *Sys) Info(ctx context.Context, id string) (Info, error) {
 	if info.Active == "active" {
 		info.Healthy = sharkord.Healthz(ctx, inst.HTTPPort) == nil
 	}
+	info.Locked = inst.Encrypted && inst.Operation == nil && !s.LUKS.IsMounted(ctx, inst.DataPath)
 	return info, nil
 }
 

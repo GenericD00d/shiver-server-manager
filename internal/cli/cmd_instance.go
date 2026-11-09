@@ -17,9 +17,6 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/systemd"
 )
 
-// encryptionBuilt switches on encrypted data folders once milestone 7 lands.
-var encryptionBuilt = false
-
 func (a *App) instanceCmd() *cobra.Command {
 	c := &cobra.Command{Use: "instance", Short: "Servers: list, create, start, stop, settings, update, move, delete", Args: cobra.NoArgs}
 	c.AddCommand(a.instanceList(), a.instanceShow(), a.instanceCreate(),
@@ -58,7 +55,9 @@ func (a *App) instanceList() *cobra.Command {
 						status += " (unfinished " + i.Operation.Name + ")"
 					}
 					running := i.Active
-					if i.Active == "active" && !i.Healthy {
+					if i.Locked {
+						running = "locked (run 'vault unlock')"
+					} else if i.Active == "active" && !i.Healthy {
 						running = "not answering"
 					}
 					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", i.ID, status, running, i.Domain, i.TLS, i.Location)
@@ -123,9 +122,6 @@ func (a *App) instanceCreate() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			r.TLS = state.TLS(tls)
 			r.Encrypted = !noEncrypt
-			if r.Encrypted && !encryptionBuilt {
-				return usageErr("encrypted data folders aren't built yet; pass --no-encrypt for now")
-			}
 			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
 				return a.logged("instance create", r.ID, func() error {
 					if err := s.CheckCreate(&r); err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
 	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
+	"github.com/GenericD00d/shiver-server-manager/internal/luks"
 	"github.com/GenericD00d/shiver-server-manager/internal/netinfo"
 	"github.com/GenericD00d/shiver-server-manager/internal/osuser"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
@@ -75,6 +76,11 @@ type Sys struct {
 	// EraseContainer locks an encrypted instance and wipes its key slots
 	// (set once encrypted data folders are built).
 	EraseContainer func(ctx context.Context, id string) error
+	LUKS           luks.LUKS
+	// VaultKey is the unlocked vault, when the command asked for it.
+	VaultKey *vault.Key
+	Fstab    string
+	newKeys  map[string][]byte
 
 	FirstStart  func(context.Context, sharkord.FirstStartOpts) (string, error)
 	WaitHealthy func(ctx context.Context, port int, timeout time.Duration) error
@@ -99,6 +105,8 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		Log:         log,
 		Caddy:       caddy.New(r, paths.CaddyGlobalFile),
 		CertWait:    2 * time.Minute,
+		LUKS:        luks.LUKS{R: r},
+		Fstab:       "/etc/fstab",
 		FirstStart:  sharkord.FirstStart,
 		WaitHealthy: sharkord.WaitHealthy,
 		PublicIPv4: func(ctx context.Context) (string, error) {
@@ -110,6 +118,7 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		OwnerOf:  fsutil.OwnerOf,
 		Now:      time.Now,
 	}
+	s.EraseContainer = s.eraseContainer
 	s.DNSCheck = func(ctx context.Context, domain string) netinfo.DNSResult {
 		return netinfo.CheckDNS(ctx, domain, s.St.Settings.PublicIPv4, netinfo.LocalIPv6())
 	}
@@ -181,4 +190,17 @@ func (s *Sys) usedPorts() (http, webrtc map[int]bool) {
 		webrtc[inst.WebRTCPort] = true
 	}
 	return
+}
+
+func runCmd(name string, args ...string) run.Cmd { return run.Cmd{Name: name, Args: args} }
+
+// Forget drops keys held in memory.
+func (s *Sys) Forget() {
+	for _, k := range s.newKeys {
+		clear(k)
+	}
+	s.newKeys = nil
+	if s.VaultKey != nil {
+		s.VaultKey.Forget()
+	}
 }

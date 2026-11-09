@@ -28,12 +28,8 @@ func (a *App) addCommands(root *cobra.Command) {
 	update := stub("update <id>", "Update a server's Sharkord version", one)
 	update.Flags().String("version", "", "Sharkord version (default: the newest tested one)")
 
-	move := stub("move <id>", "Move a server's data to another storage location", one)
-	move.Flags().String("to", "", "the storage location to move to")
-	_ = move.MarkFlagRequired("to")
-
 	instance := a.instanceCmd()
-	instance.AddCommand(update, move, a.deleteCmd())
+	instance.AddCommand(update, a.instanceMove(), a.instanceGrow(), a.deleteCmd())
 
 	token := a.tokenCmd()
 
@@ -65,13 +61,7 @@ func (a *App) addCommands(root *cobra.Command) {
 	_ = imp.MarkFlagRequired("id")
 	_ = imp.MarkFlagRequired("domain")
 
-	storage := group("storage", "Storage locations",
-		stub("list", "List storage locations", none),
-		stub("add <path>", "Add a storage location", one),
-		stub("mount <device>", "Mount a formatted drive permanently", one),
-		stub("remove <path>", "Remove an unused storage location", one),
-		stub("default <path>", "Make a location the default for new servers", one),
-	)
+	storage := a.storageCmd()
 
 	firewall := a.firewallCmd()
 

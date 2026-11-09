@@ -41,11 +41,12 @@ var setupDirs = []struct {
 }
 
 type setupFlags struct {
-	email      string
-	acmeCA     string
-	acmeCARoot string
-	noFirewall bool
-	publicIP   string
+	email        string
+	acmeCA       string
+	acmeCARoot   string
+	noFirewall   bool
+	publicIP     string
+	containerGiB int
 }
 
 func (a *App) setupCmd() *cobra.Command {
@@ -84,6 +85,7 @@ func (a *App) setupCmd() *cobra.Command {
 	c.Flags().StringVar(&f.acmeCA, "acme-ca", "", "use this ACME server instead of Let's Encrypt (testing)")
 	c.Flags().StringVar(&f.acmeCARoot, "acme-ca-root", "", "root certificate of the --acme-ca server (testing)")
 	c.Flags().StringVar(&f.publicIP, "public-ip", "", "use this public IPv4 address instead of looking it up (\"auto\" to look it up again)")
+	c.Flags().IntVar(&f.containerGiB, "container-size", 0, "size in GiB of each new encrypted container (default 10)")
 	c.Flags().BoolVar(&f.noFirewall, "no-firewall", false, "don't switch on ufw if no firewall is active")
 	_ = c.Flags().MarkHidden("acme-ca")
 	_ = c.Flags().MarkHidden("acme-ca-root")
@@ -120,6 +122,9 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 	s.Progress = a.printEvent
 	if f.email != "" {
 		st.Settings.Email = f.email
+	}
+	if f.containerGiB > 0 {
+		st.Settings.ContainerSizeGiB = f.containerGiB
 	}
 	if f.acmeCA != "" {
 		st.Settings.ACMECA = f.acmeCA
@@ -164,6 +169,13 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 	if err := a.setupFirewall(ctx, s, f.noFirewall); err != nil {
 		return err
 	}
+	if _, err := os.Stat("/usr/sbin/cryptsetup"); err != nil {
+		a.say("  … installing cryptsetup, for encrypted data folders")
+		if err := s.AptInstall(ctx, "cryptsetup"); err != nil {
+			return err
+		}
+	}
+	a.ok("Encrypted data folders: new servers get a %d GiB container", st.Settings.ContainerSizeGiB)
 	if err := s.Save(); err != nil {
 		return err
 	}
