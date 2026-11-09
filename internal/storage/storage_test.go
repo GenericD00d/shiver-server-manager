@@ -100,3 +100,20 @@ func TestMountDriveRestoresFstabOnVerifyFailure(t *testing.T) {
 		t.Fatalf("fstab not restored:\n%s", b)
 	}
 }
+
+func TestProbe(t *testing.T) {
+	f := (&run.Fake{}).On("blkid -p -o export /dev/loop3", run.FakeResponse{Stdout: "DEVNAME=/dev/loop3\nUUID=abcd-1234\nTYPE=ext4\nLABEL=disk2\n"}).
+		On("findmnt", run.FakeResponse{ExitCode: 1})
+	d, err := Probe(ctx, f, "/dev/loop3")
+	if err != nil || d.UUID != "abcd-1234" || d.FSType != "ext4" || MountPointFor(d) != "/srv/sharkord-disk2" {
+		t.Fatalf("%+v %v", d, err)
+	}
+	f = (&run.Fake{}).On("blkid", run.FakeResponse{Stdout: "UUID=1234-ABCD\nTYPE=vfat\n"}).On("findmnt", run.FakeResponse{ExitCode: 1})
+	if _, err := Probe(ctx, f, "/dev/sdc1"); err == nil {
+		t.Fatal("FAT accepted")
+	}
+	f = (&run.Fake{}).On("blkid", run.FakeResponse{Stdout: "UUID=u\nTYPE=xfs\n"}).On("findmnt", run.FakeResponse{Stdout: "/srv/x /dev/sdd1 xfs rw\n"})
+	if _, err := Probe(ctx, f, "/dev/sdd1"); err == nil {
+		t.Fatal("a mounted drive accepted")
+	}
+}

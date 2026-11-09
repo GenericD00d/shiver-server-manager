@@ -199,6 +199,35 @@ func Unmounted(ctx context.Context, r run.Runner) ([]Device, error) {
 	return found, nil
 }
 
+// Probe reads a device's file system straight from the disk with blkid,
+// for when udev hasn't recorded it (lsblk shows nothing for it yet). It
+// refuses devices that are mounted or don't hold ext4, XFS or Btrfs.
+func Probe(ctx context.Context, r run.Runner, dev string) (Device, error) {
+	d := Device{Path: dev, Type: "part"}
+	res, err := r.Run(ctx, run.Cmd{Name: "blkid", Args: []string{"-p", "-o", "export", dev}})
+	if err != nil {
+		return d, fmt.Errorf("%s has no file system blkid can read: %w", dev, err)
+	}
+	for _, line := range strings.Split(string(res.Stdout), "\n") {
+		k, v, _ := strings.Cut(strings.TrimSpace(line), "=")
+		switch k {
+		case "TYPE":
+			d.FSType = v
+		case "UUID":
+			d.UUID = v
+		case "LABEL":
+			d.Label = v
+		}
+	}
+	if d.UUID == "" || !slices.Contains(DataFS, d.FSType) {
+		return d, fmt.Errorf("%s isn't formatted ext4, XFS or Btrfs (found %q)", dev, d.FSType)
+	}
+	if out, err := r.Run(ctx, run.Cmd{Name: "findmnt", Args: []string{"-n", "--source", dev}}); err == nil && strings.TrimSpace(string(out.Stdout)) != "" {
+		return d, fmt.Errorf("%s is already mounted", dev)
+	}
+	return d, nil
+}
+
 // MountPointFor names the mount point for a drive: /srv/sharkord-<label>, or
 // the start of its UUID when it has no usable label.
 func MountPointFor(d Device) string {

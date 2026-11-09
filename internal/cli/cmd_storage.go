@@ -84,7 +84,12 @@ func (a *App) storageCmd() *cobra.Command {
 					}
 				}
 				if dev == nil {
-					return fmt.Errorf("%s isn't a formatted, unmounted ext4, XFS or Btrfs drive; run 'storage mount' to list them", args[0])
+					// Not in lsblk's list yet: read the disk directly.
+					d, err := storage.Probe(cmd.Context(), a.runner, args[0])
+					if err != nil {
+						return fmt.Errorf("%w; run 'storage mount' to list drives", err)
+					}
+					dev = &d
 				}
 				target := storage.MountPointFor(*dev)
 				a.say("This adds %s to /etc/fstab (with nofail, so a missing drive can't stop the server booting) and mounts it at %s.", dev.Path, target)
