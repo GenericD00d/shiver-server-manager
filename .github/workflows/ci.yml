@@ -67,6 +67,11 @@ jobs:
           systemctl list-timers 'shiver-server-manager-*' --no-pager
           # The timers would run during the tests; keep the tests deterministic.
           sudo systemctl stop shiver-server-manager-health.timer shiver-server-manager-backup.timer
+      - name: Ubuntu's own (too old) Caddy, which setup must upgrade
+        run: |
+          sudo apt-get install -y caddy
+          caddy version
+          caddy version | grep -q '^2\.6\.'
       - name: Test accounts
         run: |
           sudo useradd -m -G shiver-admins ssm-admin

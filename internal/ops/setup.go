@@ -168,7 +168,11 @@ func (s *Sys) InstallCaddy(ctx context.Context) error {
 	if _, err := s.R.Run(ctx, run.Cmd{Name: "apt-get", Args: []string{"update"}, Env: apt, Timeout: 10 * time.Minute}); err != nil {
 		return err
 	}
-	_, err = s.R.Run(ctx, run.Cmd{Name: "apt-get", Args: []string{"install", "-y", "caddy"}, Env: apt, Timeout: 10 * time.Minute})
+	// Also upgrades Ubuntu's older Caddy in place; an existing Caddyfile is
+	// kept as it is (setup then only adds its import lines).
+	_, err = s.R.Run(ctx, run.Cmd{Name: "apt-get", Args: []string{"install", "-y",
+		"-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "caddy"},
+		Env: apt, Timeout: 10 * time.Minute})
 	return err
 }
 

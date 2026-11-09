@@ -53,7 +53,8 @@ func (c *Caddy) certDir(issuer, d string) string {
 // MinVersion is the oldest Caddy with the settings the manager uses.
 var MinVersion = [3]int{2, 11, 0}
 
-var versionRE = regexp.MustCompile(`v(\d+)\.(\d+)\.(\d+)`)
+// Caddy's own builds print "v2.11.9 h1:...", Ubuntu's package just "2.6.2".
+var versionRE = regexp.MustCompile(`(?m)^\s*v?(\d+)\.(\d+)\.(\d+)`)
 
 // Version runs "caddy version". ok=false means Caddy isn't installed.
 func (c *Caddy) Version(ctx context.Context) (v [3]int, ok bool, err error) {

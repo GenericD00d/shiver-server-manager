@@ -328,7 +328,25 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 		a.log.Action("install caddy", nil)
 	}
 	if !caddy.VersionOK(v) {
-		return fmt.Errorf("Caddy %d.%d.%d is too old; %d.%d or newer is needed. Ubuntu's own Caddy package is too old: remove it, then run setup again to install Caddy's own", v[0], v[1], v[2], caddy.MinVersion[0], caddy.MinVersion[1])
+		ok, err := a.term.confirm(fmt.Sprintf("Caddy %d.%d.%d is installed, probably Ubuntu's own package, but the manager needs %d.%d or newer. Upgrade it from Caddy's own apt repository? (Any sites it already serves keep working.)",
+			v[0], v[1], v[2], caddy.MinVersion[0], caddy.MinVersion[1]))
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("Caddy %d.%d.%d is too old; the manager needs %d.%d or newer", v[0], v[1], v[2], caddy.MinVersion[0], caddy.MinVersion[1])
+		}
+		a.say("  … upgrading Caddy")
+		if err := s.InstallCaddy(ctx); err != nil {
+			return err
+		}
+		if v, _, err = s.Caddy.Version(ctx); err != nil {
+			return err
+		}
+		a.log.Action("upgrade caddy", nil)
+		if !caddy.VersionOK(v) {
+			return fmt.Errorf("Caddy is still %d.%d.%d after the upgrade; check 'apt-cache policy caddy' for a package pinned to Ubuntu's version", v[0], v[1], v[2])
+		}
 	}
 	a.ok("Caddy %d.%d.%d", v[0], v[1], v[2])
 

@@ -114,6 +114,11 @@ func TestVersion(t *testing.T) {
 	if err != nil || !ok || v != [3]int{2, 11, 9} || !VersionOK(v) {
 		t.Fatalf("%v %v %v", v, ok, err)
 	}
+	// Ubuntu's package prints just the number.
+	f = (&run.Fake{}).On("caddy version", run.FakeResponse{Stdout: "2.6.2\n"})
+	if v, ok, err := (&Caddy{R: f}).Version(context.Background()); err != nil || !ok || v != [3]int{2, 6, 2} {
+		t.Fatalf("Ubuntu's format: %v %v %v", v, ok, err)
+	}
 	if VersionOK([3]int{2, 6, 2}) || !VersionOK([3]int{3, 0, 0}) {
 		t.Fatal("VersionOK")
 	}
