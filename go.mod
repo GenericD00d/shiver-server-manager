@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	filippo.io/age v1.3.2
+	github.com/huin/goupnp v1.3.0
 	github.com/klauspost/compress v1.20.4
 	github.com/msteinert/pam/v2 v2.1.0
 	github.com/spf13/cobra v1.10.2
@@ -24,6 +25,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

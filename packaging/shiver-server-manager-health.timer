@@ -1,0 +1,10 @@
+# Managed by shiver-server-manager. Do not edit.
+[Unit]
+Description=Run the Shiver Server Manager health check every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

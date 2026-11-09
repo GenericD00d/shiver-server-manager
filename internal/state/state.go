@@ -60,6 +60,9 @@ type Settings struct {
 	// ACMECA and ACMECARoot point Caddy at a test CA (Pebble); hidden setting.
 	ACMECA     string `json:"acmeCA,omitempty"`
 	ACMECARoot string `json:"acmeCARoot,omitempty"`
+	// UPnP is on when the admin asked the manager to forward ports on a
+	// home router.
+	UPnP bool `json:"upnp,omitempty"`
 }
 
 // Operation is a create, delete, update, switch, move, unlock, restore or

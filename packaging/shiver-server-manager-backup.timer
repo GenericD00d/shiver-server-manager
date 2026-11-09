@@ -1,0 +1,10 @@
+# Managed by shiver-server-manager. Do not edit.
+[Unit]
+Description=Back up every Sharkord server at 00:00 and 12:00
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -84,7 +84,14 @@ func TestMountDriveRestoresFstabOnVerifyFailure(t *testing.T) {
 		t.Skip("creates /srv/sharkord-*; set SSM_ROOT_TESTS on a throwaway machine")
 	}
 	fstab := fstabFile(t, "UUID=root / ext4 defaults 0 1\n")
-	f := (&run.Fake{}).On("findmnt", run.FakeResponse{ExitCode: 1, Stderr: "parse error"})
+	calls := 0
+	f := &run.Fake{Handler: func(c run.Call) (run.FakeResponse, bool) {
+		calls++
+		if calls == 1 { // before: the admin's fstab already has one error
+			return run.FakeResponse{ExitCode: 1, Stderr: "0 parse errors, 1 error, 0 warnings"}, true
+		}
+		return run.FakeResponse{ExitCode: 1, Stderr: "1 parse error, 1 error, 0 warnings"}, true
+	}}
 	_, err := MountDrive(ctx, f, Device{UUID: "u", FSType: "ext4", Label: "t"}, fstab)
 	if err == nil {
 		t.Fatal("verify failure not reported")

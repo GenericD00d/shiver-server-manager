@@ -1,0 +1,9 @@
+# Managed by shiver-server-manager. Do not edit.
+[Unit]
+Description=Shiver Server Manager health check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/shiver-server-manager health --unattended

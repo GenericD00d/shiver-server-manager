@@ -21,15 +21,10 @@ func group(use, short string, children ...*cobra.Command) *cobra.Command {
 }
 
 func (a *App) addCommands(root *cobra.Command) {
-	none := cobra.NoArgs
-
 	instance := a.instanceCmd()
 	instance.AddCommand(a.instanceUpdate(), a.instanceMove(), a.instanceGrow(), a.deleteCmd())
 
-	health := stub("health", "Run the health check", none)
-	health.Flags().Bool("unattended", false, "run from the timer: no login, no prompts")
-
 	root.AddCommand(a.setupCmd(), instance, a.tokenCmd(), a.shiverCmd(), a.certCmd(), a.backupCmd(), a.restoreCmd(),
-		a.exportCmd(), a.importCmd(), a.storageCmd(), a.firewallCmd(), a.vaultCmd(), a.adminsCmd(), health,
+		a.exportCmd(), a.importCmd(), a.storageCmd(), a.firewallCmd(), a.vaultCmd(), a.adminsCmd(), a.healthCmd(),
 		a.repairCmd(), a.internalVacuumCmd(), a.internalEnablePluginsCmd())
 }

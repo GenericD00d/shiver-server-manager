@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
@@ -239,6 +241,8 @@ func MountDrive(ctx context.Context, r run.Runner, d Device, fstab string) (stri
 		if err := os.WriteFile(fstab+".shiver-server-manager.bak", old, 0o644); err != nil {
 			return "", err
 		}
+		// fstab may already have problems of its own; only new ones count.
+		before, _ := verifyFstab(ctx, r, fstab)
 		next := string(old)
 		if next != "" && !strings.HasSuffix(next, "\n") {
 			next += "\n"
@@ -247,9 +251,10 @@ func MountDrive(ctx context.Context, r run.Runner, d Device, fstab string) (stri
 		if err := fsutil.WriteFileAtomic(fstab, []byte(next), 0o644, nil); err != nil {
 			return "", err
 		}
-		if _, err := r.Run(ctx, run.Cmd{Name: "findmnt", Args: []string{"--verify", "--tab-file", fstab}}); err != nil {
+		after, details := verifyFstab(ctx, r, fstab)
+		if after > before {
 			_ = fsutil.WriteFileAtomic(fstab, old, 0o644, nil)
-			return "", fmt.Errorf("findmnt --verify found a problem, so /etc/fstab was put back: %w", err)
+			return "", fmt.Errorf("findmnt --verify found a problem with the new line, so /etc/fstab was put back:\n%s", details)
 		}
 		if _, err := r.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"daemon-reload"}}); err != nil {
 			return "", err
@@ -263,4 +268,23 @@ func MountDrive(ctx context.Context, r run.Runner, d Device, fstab string) (stri
 		return "", errors.New("the drive didn't mount at " + target)
 	}
 	return target, nil
+}
+
+var verifySummary = regexp.MustCompile(`(\d+) parse errors?, (\d+) errors?`)
+
+// verifyFstab runs findmnt --verify and returns how many problems (parse
+// errors plus errors) it reports, and its details.
+func verifyFstab(ctx context.Context, r run.Runner, fstab string) (int, string) {
+	res, err := r.Run(ctx, run.Cmd{Name: "findmnt", Args: []string{"--verify", "--tab-file", fstab}})
+	out := strings.TrimSpace(string(res.Stdout) + "\n" + string(res.Stderr))
+	m := verifySummary.FindStringSubmatch(out)
+	if m == nil {
+		if err != nil {
+			return 1 << 20, out // couldn't tell: treat as a problem
+		}
+		return 0, out
+	}
+	p, _ := strconv.Atoi(m[1])
+	e, _ := strconv.Atoi(m[2])
+	return p + e, out
 }

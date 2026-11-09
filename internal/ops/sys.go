@@ -36,6 +36,8 @@ type Paths struct {
 	SystemdDir     string
 	VaultDir       string
 	CacheDir       string
+	HealthFile     string
+	AlertsFile     string
 }
 
 func DefaultPaths() Paths {
@@ -47,6 +49,8 @@ func DefaultPaths() Paths {
 		SystemdDir:     "/etc/systemd/system",
 		VaultDir:       paths.VaultDir,
 		CacheDir:       filepath.Join(paths.StateDir, "cache"),
+		HealthFile:     paths.HealthFile,
+		AlertsFile:     filepath.Join(paths.ConfigDir, "alerts.json"),
 	}
 }
 
@@ -89,12 +93,15 @@ type Sys struct {
 	ManagerVersion string
 	Shiver         *plugins.Client
 	// PluginLog reads a unit's journal since a time (nil skips the check).
-	PluginLog    func(ctx context.Context, unit string, since time.Time) (string, error)
+	PluginLog func(ctx context.Context, unit string, since time.Time) (string, error)
+	// FindRouter finds the home router for UPnP.
+	FindRouter   func(ctx context.Context) (PortMapper, error)
 	importSource *ImportSource
 	importHooks  ImportHooks
 
 	FirstStart  func(context.Context, sharkord.FirstStartOpts) (string, error)
 	WaitHealthy func(ctx context.Context, port int, timeout time.Duration) error
+	Healthz     func(ctx context.Context, port int) error
 	PublicIPv4  func(context.Context) (string, error)
 	PortFree    func(port int, udpToo bool) bool
 	UserIDs     func(name string) (uid, gid int, err error)
@@ -134,6 +141,7 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 	s.EraseContainer = s.eraseContainer
 	s.Shiver = plugins.NewClient(userAgent, filepath.Join(p.CacheDir, "shiver-release.json"))
 	s.PluginLog = journalSince(r)
+	s.FindRouter = func(ctx context.Context) (PortMapper, error) { return netinfo.FindRouter(ctx) }
 	s.DNSCheck = func(ctx context.Context, domain string) netinfo.DNSResult {
 		return netinfo.CheckDNS(ctx, domain, s.St.Settings.PublicIPv4, netinfo.LocalIPv6())
 	}
@@ -218,4 +226,11 @@ func (s *Sys) Forget() {
 	if s.VaultKey != nil {
 		s.VaultKey.Forget()
 	}
+}
+
+// PortMapper forwards ports on a router.
+type PortMapper interface {
+	Map(ctx context.Context, m netinfo.Mapping) (uint32, error)
+	Unmap(ctx context.Context, port int, proto string) error
+	ExternalIP(ctx context.Context) (string, error)
 }

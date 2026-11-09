@@ -103,6 +103,8 @@ func (fs *fakeSystem) handle(c run.Call) (run.FakeResponse, bool) {
 	defer fs.mu.Unlock()
 	a := c.Args
 	switch {
+	case c.Name == "findmnt" && len(a) > 0 && a[0] == "-J":
+		return run.FakeResponse{Stdout: `{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4","options":"rw","uuid":"root"}]}`}, true
 	case c.Name == "rsync":
 		src, dst := strings.TrimSuffix(a[len(a)-2], "/"), strings.TrimSuffix(a[len(a)-1], "/")
 		if err := copyTree(src, dst); err != nil {
@@ -218,6 +220,12 @@ func newHarness(t *testing.T) *harness {
 			return testToken, err
 		},
 		WaitHealthy: func(context.Context, int, time.Duration) error {
+			if !h.healthy {
+				return errors.New("not healthy")
+			}
+			return nil
+		},
+		Healthz: func(context.Context, int) error {
 			if !h.healthy {
 				return errors.New("not healthy")
 			}

@@ -103,6 +103,9 @@ func (s *Sys) deleteSteps(id string) []Step {
 				return true, err
 			},
 			Do: func(ctx context.Context) error {
+				if err := s.UPnPUnmap(ctx, inst.WebRTCPort); err != nil {
+					s.emit(Event{Instance: id, Step: "firewall", Status: "note", Detail: "couldn't remove the router's port forwarding: " + err.Error()})
+				}
 				rules, err := s.Firewall().List(ctx)
 				if err != nil {
 					return err

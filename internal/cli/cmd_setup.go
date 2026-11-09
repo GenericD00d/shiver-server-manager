@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -215,6 +216,20 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 		}
 	}
 
+	if !slices.Contains(netinfo.LocalIPv4(), st.Settings.PublicIPv4) {
+		// Behind a router: look for it, to spot carrier-grade NAT.
+		rctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		if router, err := s.FindRouter(rctx); err == nil {
+			wan, _ := router.ExternalIP(rctx)
+			if problem := netinfo.NATProblem(wan, st.Settings.PublicIPv4); problem != "" {
+				a.warn("%s", problem)
+			} else {
+				a.ok("Home router found; forward the ports there, or let the manager do it with: firewall upnp on")
+			}
+		}
+		cancel()
+	}
+
 	for name, err := range ops.Outbound(ctx) {
 		if err != nil {
 			a.warn("Can't reach %s: %v", name, err)
@@ -237,6 +252,37 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 		}
 	} else {
 		a.warn("Automatic security updates (unattended-upgrades) are off. Turn them on with: dpkg-reconfigure -plow unattended-upgrades")
+	}
+
+	if isDesktop(ctx, a) {
+		const unit = "/etc/systemd/system/shiver-server-manager-inhibit.service"
+		if _, err := os.Stat(unit); err != nil {
+			ok, err := a.term.confirm("This looks like a desktop computer. A sleeping computer takes every community offline. Keep it awake while the manager is installed?")
+			if err != nil {
+				return err
+			}
+			if ok {
+				if err := fsutil.WriteFileAtomic(unit, []byte(inhibitUnit), 0o644, nil); err != nil {
+					return err
+				}
+				if _, err := a.runner.Run(ctx, runCmd("systemctl", "daemon-reload")); err != nil {
+					return err
+				}
+				if _, err := a.runner.Run(ctx, runCmd("systemctl", "enable", "--now", "shiver-server-manager-inhibit.service")); err != nil {
+					return err
+				}
+				a.ok("Sleep is blocked while the manager is installed (check your desktop's power settings respect it)")
+			} else {
+				a.warn("Make sure this computer doesn't go to sleep by itself, in your desktop's power settings.")
+			}
+		}
+	}
+	for _, t := range []string{"shiver-server-manager-health.timer", "shiver-server-manager-backup.timer"} {
+		if _, err := os.Stat("/usr/lib/systemd/system/" + t); err == nil {
+			if _, err := a.runner.Run(ctx, runCmd("systemctl", "enable", "--now", t)); err != nil {
+				return err
+			}
+		}
 	}
 
 	v := a.vault()

@@ -49,7 +49,7 @@ func (s *Sys) Info(ctx context.Context, id string) (Info, error) {
 		info.Active = st.Active
 	}
 	if info.Active == "active" {
-		info.Healthy = sharkord.Healthz(ctx, inst.HTTPPort) == nil
+		info.Healthy = s.Healthz(ctx, inst.HTTPPort) == nil
 	}
 	info.Locked = inst.Encrypted && inst.Operation == nil && !s.LUKS.IsMounted(ctx, inst.DataPath)
 	return info, nil
