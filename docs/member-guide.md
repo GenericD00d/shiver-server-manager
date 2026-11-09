@@ -1,3 +1,5 @@
+<img src="../logo.png" alt="Shiver Server Manager" width="72" align="right">
+
 # Member guide: self-signed servers
 
 If your community's server uses a self-signed certificate, your browser and apps will warn that the connection isn't private until you install the server's **root certificate** once on each device. After that, the warning is gone for good (the root lasts about ten years).

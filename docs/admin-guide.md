@@ -1,3 +1,5 @@
+<img src="../logo.png" alt="Shiver Server Manager" width="72" align="right">
+
 # Admin guide
 
 Shiver Server Manager runs several [Sharkord](https://github.com/sharkord/sharkord) servers on one machine, each on its own domain, with Caddy handling HTTPS. Everything is done from a terminal menu (`sudo shiver-server-manager`) or the same actions as commands (`sudo shiver-server-manager --help`).

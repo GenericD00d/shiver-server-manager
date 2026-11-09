@@ -1,3 +1,5 @@
+<img src="../logo.png" alt="Shiver Server Manager" width="72" align="right">
+
 # Troubleshooting
 
 Start with System > Health check (`sudo shiver-server-manager health`) and System > Repair (`repair --dry-run` shows what it would change). Every action is logged in `/var/log/shiver-server-manager.log`.
