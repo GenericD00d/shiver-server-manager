@@ -47,7 +47,7 @@ func TestE2EHealthAndNetwork(t *testing.T) {
 	t.Run("alerts go to a webhook when a problem appears and clears", func(t *testing.T) {
 		e.asAdmin(t, 0, "", "health", "alerts", "--webhook", "http://"+l.Addr().String()+"/hook")
 		e.expect(t, 0, "", "", "health", "--unattended") // baseline
-		sh(t, "systemctl stop sharkord@chat-a")         // a crash the admin didn't ask for
+		sh(t, "systemctl stop sharkord@chat-a")          // a crash the admin didn't ask for
 		out := e.expect(t, 0, "", "", "health", "--unattended")
 		if !strings.Contains(out, "chat-a isn't running") {
 			t.Fatalf("health:\n%s", out)
