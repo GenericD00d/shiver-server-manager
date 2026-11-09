@@ -46,8 +46,6 @@ func usageErr(format string, a ...any) error {
 	return &ExitCodeError{Code: ExitUsage, Err: fmt.Errorf(format, a...)}
 }
 
-var errNotBuilt = errors.New("not built yet")
-
 // Globals are the flags every command takes.
 type Globals struct {
 	JSON            bool
@@ -147,13 +145,16 @@ func (a *App) newRoot() *cobra.Command {
 				return err
 			}
 			a.log = actionlog.New(paths.LogFile)
+			if a.session != nil { // a command run from the menu
+				a.log.User, a.log.SSHUser = a.session.User, a.session.SSHUser
+			}
 			exec := &run.Exec{Log: a.log.Line}
 			a.runner = exec
 			a.term = newTermIO(a, exec)
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return fmt.Errorf("the menu is %w; run '%s --help' for commands", errNotBuilt, paths.Cmd)
+			return a.runMenu()
 		},
 	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {

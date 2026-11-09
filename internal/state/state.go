@@ -92,9 +92,12 @@ type Instance struct {
 	Settings        map[string]string `json:"settings,omitempty"`
 	// Stopped is set when an admin stops the instance, so repair and the
 	// health check don't start it again.
-	Stopped   bool       `json:"stopped,omitempty"`
-	CreatedAt time.Time  `json:"createdAt"`
-	Operation *Operation `json:"operation"`
+	Stopped bool `json:"stopped,omitempty"`
+	// Resource caps; 0 means none.
+	MemoryMaxMiB int        `json:"memoryMaxMiB,omitempty"`
+	CPUPercent   int        `json:"cpuPercent,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	Operation    *Operation `json:"operation"`
 }
 
 type State struct {

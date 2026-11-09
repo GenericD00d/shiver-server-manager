@@ -252,6 +252,9 @@ func (s *Sys) renderFiles(id string) (map[string][]byte, error) {
 	if inst.Encrypted {
 		files[filepath.Join(s.dropinDir(id), "encrypted.conf")] = systemd.EncryptedDropin(paths.Marker, id, inst.DataPath)
 	}
+	if inst.MemoryMaxMiB > 0 || inst.CPUPercent > 0 {
+		files[filepath.Join(s.dropinDir(id), "limits.conf")] = systemd.LimitsDropin(paths.Marker, id, inst.MemoryMaxMiB, inst.CPUPercent)
+	}
 	return files, nil
 }
 
@@ -289,6 +292,11 @@ func (s *Sys) writeFiles(ctx context.Context, id string) error {
 		}
 	}
 	inst := s.St.Instances[id]
+	if inst.MemoryMaxMiB == 0 && inst.CPUPercent == 0 {
+		if err := fsutil.RemoveIfExists(filepath.Join(s.dropinDir(id), "limits.conf")); err != nil {
+			return err
+		}
+	}
 	if err := fsutil.MkdirAllMode(s.Paths.VersionLinkDir, 0o755); err != nil {
 		return err
 	}
