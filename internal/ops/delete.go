@@ -25,11 +25,25 @@ func (s *Sys) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if inst.Operation != nil && inst.Operation.Name != OpDelete && inst.Operation.Name != OpCreate {
-		return fmt.Errorf("server %q has an unfinished %s; run 'repair' first", id, inst.Operation.Name)
+	// Delete always works, whatever was left unfinished (an interrupted
+	// create, import, move...): it's the way out of a half-made server.
+	// Every delete step copes with things being half there. An interrupted
+	// move may have left a copy in the other location; remember both.
+	other := ""
+	if op := inst.Operation; op != nil && op.Name == OpMove {
+		for _, loc := range []string{op.Params["from"], op.Params["to"]} {
+			if loc != "" && loc != inst.Location {
+				other = loc
+			}
+		}
 	}
-	inst.Status = state.StatusDeleting
-	inst.Operation = &state.Operation{Name: OpDelete, StartedAt: s.Now().UTC()}
+	if inst.Operation == nil || inst.Operation.Name != OpDelete {
+		inst.Status = state.StatusDeleting
+		inst.Operation = &state.Operation{Name: OpDelete, StartedAt: s.Now().UTC()}
+		if other != "" {
+			inst.Operation.Params = map[string]string{"otherLocation": other}
+		}
+	}
 	if err := s.Save(); err != nil {
 		return err
 	}
@@ -135,7 +149,10 @@ func (s *Sys) deleteSteps(id string) []Step {
 				if err != nil {
 					return false, err
 				}
-				return !fsutil.Exists(p), nil
+				if other := otherCopy(inst, id); other != "" && (fsutil.Exists(other) || fsutil.Exists(other+".luks")) {
+					return false, nil
+				}
+				return !fsutil.Exists(p) && !fsutil.Exists(ContainerPath(inst, id)), nil
 			},
 			Do: func(ctx context.Context) error {
 				p, err := safeDataPath(inst, id)
@@ -147,7 +164,27 @@ func (s *Sys) deleteSteps(id string) []Step {
 						return err
 					}
 				}
-				return os.RemoveAll(p)
+				if err := os.RemoveAll(p); err != nil {
+					return err
+				}
+				// An interrupted move's copy in the other location.
+				if other := otherCopy(inst, id); other != "" {
+					if err := s.LUKS.Umount(ctx, other); err != nil {
+						return err
+					}
+					if err := s.LUKS.Close(ctx, id); err != nil {
+						return err
+					}
+					if err := s.LUKS.Erase(ctx, other+".luks"); err != nil {
+						return err
+					}
+					for _, q := range []string{other, other + ".luks"} {
+						if err := os.RemoveAll(q); err != nil {
+							return err
+						}
+					}
+				}
+				return nil
 			},
 		},
 		{
@@ -215,4 +252,17 @@ func ruleIDs(rules []firewall.Rule) map[string]bool {
 func isManaged(p, marker string) bool {
 	b, err := os.ReadFile(p)
 	return err == nil && strings.Contains(string(b), marker)
+}
+
+// otherCopy is <location>/<id> in the other location of an interrupted
+// move, or "".
+func otherCopy(inst *state.Instance, id string) string {
+	if inst.Operation == nil || inst.Operation.Params["otherLocation"] == "" {
+		return ""
+	}
+	loc := filepath.Clean(inst.Operation.Params["otherLocation"])
+	if !filepath.IsAbs(loc) || loc == inst.Location {
+		return ""
+	}
+	return filepath.Join(loc, id)
 }

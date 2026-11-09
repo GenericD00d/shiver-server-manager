@@ -222,3 +222,54 @@ func TestSwitchTLS(t *testing.T) {
 		t.Fatal("test mode with self-signed accepted")
 	}
 }
+
+// A server stuck in an unfinished import (which repair can't finish
+// without its source) can still be deleted, and so can everything.
+func TestDeleteAfterAnInterruptedImport(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.s.Create(ctx, req("chat-a")); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(t.TempDir(), "gone.tar.zst.age") // the source isn't there any more
+	h.s.VaultKey, _ = h.s.Vault.Unlock("test vault passphrase")
+	err := h.s.Import(ctx, ImportRequest{CreateRequest: CreateRequest{ID: "half", Domain: "half.example.com"},
+		Source: ImportSource{Archive: src, Identity: h.s.VaultKey.Identity()}, Plan: ImportPlan{RunVersion: "0.0.30"}}, ImportHooks{})
+	if !IsPartial(err) {
+		t.Fatalf("import: %v", err)
+	}
+	if op := h.s.St.Instances["half"].Operation; op == nil || op.Name != OpImport {
+		t.Fatalf("operation %+v", op)
+	}
+	plan, _ := h.s.RepairPlan(ctx)
+	if len(plan) == 0 || plan[0].Fix != nil || !strings.Contains(plan[0].What, "delete the server") {
+		t.Fatalf("repair plan for an unfinished import: %+v", plan)
+	}
+	if err := h.s.RemoveEverything(ctx); err != nil {
+		t.Fatalf("remove everything: %v", err)
+	}
+	if len(h.s.St.Instances) != 0 {
+		t.Fatalf("left: %v", h.s.IDs())
+	}
+	if h.sys.users["sharkord-half"] || h.sys.users["sharkord-chat-a"] {
+		t.Fatal("users left")
+	}
+}
+
+func TestDeleteAfterAnInterruptedMove(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.s.Create(ctx, req("chat-a")); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(h.root, "disk2")
+	os.MkdirAll(filepath.Join(other, "chat-a", "uploads"), 0o700) // the half-made copy
+	inst := h.s.St.Instances["chat-a"]
+	inst.Operation = &state.Operation{Name: OpMove, LastStep: "copy", Params: map[string]string{"from": inst.Location, "to": other, "copied": "yes"}}
+	if err := h.s.Delete(ctx, "chat-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(other, "chat-a")); err == nil {
+		t.Fatal("the move's other copy was left behind")
+	}
+}

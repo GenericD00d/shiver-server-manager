@@ -35,6 +35,12 @@ func (s *Sys) RepairPlan(ctx context.Context) ([]Finding, error) {
 	var out []Finding
 	for _, id := range s.IDs() {
 		inst := s.St.Instances[id]
+		if inst.Operation != nil && inst.Operation.Name == OpImport {
+			// An import needs its source (and passphrase) to carry on.
+			out = append(out, Finding{Kind: "problem", Instance: id,
+				What: fmt.Sprintf("an unfinished import: run the same import again to finish it, or delete the server (instance delete %s)", id)})
+			continue
+		}
 		if inst.Operation != nil {
 			id := id
 			out = append(out, Finding{Kind: "resume", Instance: id,

@@ -28,6 +28,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/backup"
 	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
 	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
+	"github.com/GenericD00d/shiver-server-manager/internal/luks"
 	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
 )
 
@@ -205,7 +206,7 @@ func newHarness(t *testing.T) *harness {
 	client.DownloadBase = srv.URL + "/dl"
 	h.s = &Sys{
 		Paths: p, R: h.fake, St: st, Vault: v, Systemd: systemd.Systemd{R: h.fake}, Sharkord: client,
-		Caddy: cad, FirewallFor: func(string) firewall.Firewall { return fw },
+		Caddy: cad, FirewallFor: func(string) firewall.Firewall { return fw }, LUKS: luks.LUKS{R: h.fake},
 		FirstStart: func(_ context.Context, o sharkord.FirstStartOpts) (string, error) {
 			h.firstStart++
 			db, err := sql.Open("sqlite", "file:"+filepath.Join(o.DataPath, "db.sqlite"))
@@ -455,4 +456,12 @@ func runSelfAsInProcess(args ...string) error {
 		return plugins.EnableInDB(args[1])
 	}
 	return fmt.Errorf("unknown internal command %s", args[0])
+}
+
+func TestCreateNeedsSetupFirst(t *testing.T) {
+	h := newHarness(t)
+	h.s.Vault = &vault.Vault{Dir: filepath.Join(h.root, "no-vault")}
+	if err := h.s.Create(context.Background(), req("chat-a")); err == nil || !strings.Contains(err.Error(), "setup") {
+		t.Fatalf("got %v", err)
+	}
 }

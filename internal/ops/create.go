@@ -33,6 +33,9 @@ type CreateRequest struct {
 
 // CheckCreate validates a request against the records and fills defaults.
 func (s *Sys) CheckCreate(req *CreateRequest) error {
+	if !s.Vault.Exists() {
+		return errors.New("first-time setup hasn't finished (there's no vault yet); run setup first")
+	}
 	if err := validate.InstanceID(req.ID); err != nil {
 		return err
 	}
