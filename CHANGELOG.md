@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-10)
 
 First release. Everything in the checklist, built in the guide's order:
 
