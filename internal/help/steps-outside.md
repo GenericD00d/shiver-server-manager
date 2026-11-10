@@ -23,7 +23,7 @@ In your hosting provider's control panel, find the firewall or security group at
 
 ## Forward ports on a home router
 
-First give the server a fixed local address with the router's DHCP reservation setting. Then open the router's admin page (its address is usually on a label, often 192.168.0.1 or 192.168.1.1), find "Port forwarding" (sometimes "Virtual server" or "NAT"), and forward the same ports to that address. If your router supports UPnP, Firewall > Router port mapping can do this for you.
+First give the server a fixed local address with the router's DHCP reservation setting. Then open the router's admin page (its address is usually on a label, often 192.168.0.1 or 192.168.1.1), find "Port forwarding" (sometimes "Virtual server" or "NAT"), and forward the same ports to that address. Forward each server's voice port on its own (40000, 40001, ...; `instance info <id>` shows it) rather than the whole range: some routers accept a large range and then silently drop it, while 80 and 443 keep working. If your router supports UPnP, Firewall > Router port mapping can do this for you.
 
 ## Get around carrier-grade NAT
 
