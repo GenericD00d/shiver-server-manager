@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.5 (2026-11-10)
 
 - Each server can have its own backup schedule (times of day and days of the week), its own retention (how many to keep, and/or for how many days), or no scheduled backups at all: Backups > Schedules on the web page, or `backup schedule <id>`. A tighter limit deletes the extra backups at once, after showing which. The newest backup is never dropped for its age. The default stays 00:00 and 12:00, keeping 14.
 - Delete single backups: the bin button on Backups, or `backup delete <id> <file>`.
