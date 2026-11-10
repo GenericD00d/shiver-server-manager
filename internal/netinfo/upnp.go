@@ -97,6 +97,18 @@ func (u *UPnP) LANAddress() (string, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
+// ErrPortTaken: the router already forwards the port with another rule,
+// usually one set by hand in its settings (UPnP errors 718 and 729).
+var ErrPortTaken = errors.New("the router already forwards this port with another rule (one set by hand in its settings, or another device's)")
+
+func portTaken(err error) bool {
+	if err == nil {
+		return false
+	}
+	e := err.Error()
+	return strings.Contains(e, "<errorCode>718<") || strings.Contains(e, "<errorCode>729<")
+}
+
 // Mapping is one forwarded port.
 type Mapping struct {
 	Port  int
@@ -120,7 +132,13 @@ func (u *UPnP) Map(ctx context.Context, m Mapping) (uint32, error) {
 	if err == nil {
 		return 0, nil
 	}
+	if portTaken(err) {
+		return 0, fmt.Errorf("%w: %d/%s", ErrPortTaken, m.Port, proto)
+	}
 	if err2 := u.router.AddPortMappingCtx(ctx, "", uint16(m.Port), proto, uint16(m.Port), lan, true, m.Label, LeaseFallback); err2 != nil {
+		if portTaken(err2) {
+			return 0, fmt.Errorf("%w: %d/%s", ErrPortTaken, m.Port, proto)
+		}
 		return 0, fmt.Errorf("the router refused to forward %d/%s: %v", m.Port, proto, err)
 	}
 	return LeaseFallback, nil

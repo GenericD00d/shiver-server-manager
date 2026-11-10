@@ -1,11 +1,9 @@
 # Changelog
 
-## Unreleased
-
-- `firewall upnp` found no router when the server's firewall was on: ufw dropped the router's answers to the multicast search. When nobody answers, it now asks the default gateway directly, whose answer the firewall lets in.
-
 ## 0.1.2 (2026-11-10)
 
+- `firewall upnp` found no router when the server's firewall was on: ufw dropped the router's answers to the multicast search. When nobody answers, it now asks the default gateway directly, whose answer the firewall lets in.
+- `firewall upnp on` explains when the router refuses because it already forwards the ports with rules set by hand (UPnP errors 718 and 729), and leaves UPnP off since it isn't needed.
 - Upgrading the package restarts the web page if it's running, so it shows and runs the new version (before, it kept the old one until restarted by hand).
 - The DNS warning during create and import now says how to stop it: `cert dns-check <id> off` when the domain points at a proxy in front of the server, or `cert switch <id> --tls selfsigned`.
 - `cert dns-check <id> on|off` (and Certificates > DNS check on the web page) turns the check on or off for an existing server.

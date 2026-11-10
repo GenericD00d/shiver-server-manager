@@ -2,6 +2,7 @@ package netinfo
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strings"
 	"testing"
@@ -39,5 +40,20 @@ func TestSearchUnicast(t *testing.T) {
 	loc, err := searchUnicastPort(context.Background(), "127.0.0.1", port, "urn:schemas-upnp-org:device:InternetGatewayDevice:1")
 	if err != nil || loc.String() != "http://192.168.1.1:5000/rootDesc.xml" {
 		t.Fatalf("%v %v", loc, err)
+	}
+}
+
+type takenRouter struct{}
+
+func (takenRouter) AddPortMappingCtx(context.Context, string, uint16, string, uint16, string, bool, string, uint32) error {
+	return errors.New("SOAP fault: <UPnPError><errorCode>729</errorCode><errorDescription>ConflictWithOtherMechanisms</errorDescription></UPnPError>")
+}
+func (takenRouter) DeletePortMappingCtx(context.Context, string, uint16, string) error { return nil }
+func (takenRouter) GetExternalIPAddressCtx(context.Context) (string, error)            { return "", nil }
+
+func TestPortTaken(t *testing.T) {
+	_, err := NewUPnP(takenRouter{}, "127.0.0.1:1900").Map(context.Background(), Mapping{Port: 40000, Proto: "udp"})
+	if !errors.Is(err, ErrPortTaken) || !strings.Contains(err.Error(), "40000/UDP") {
+		t.Fatalf("%v", err)
 	}
 }

@@ -168,6 +168,16 @@ func (a *App) upnpCmd() *cobra.Command {
 					}
 					err := s.UPnPMapAll(cmd.Context())
 					a.log.Action("upnp on", err)
+					if err != nil && allPortsTaken(err) {
+						// Every port is forwarded by rules set by hand already:
+						// UPnP has nothing to add, and the health check would
+						// only keep reporting the same refusals.
+						s.St.Settings.UPnP = false
+						if serr := s.Save(); serr != nil {
+							return serr
+						}
+						return fmt.Errorf("the router already forwards every port with rules set by hand, so UPnP isn't needed and stays off:\n%v\nIf outside traffic still doesn't arrive, check those rules point at this machine (%s)", err, lanHint(router))
+					}
 					if err != nil {
 						return err
 					}
@@ -219,4 +229,29 @@ func runCmd(name string, args ...string) run.Cmd { return run.Cmd{Name: name, Ar
 func isDesktop(ctx context.Context, a *App) bool {
 	res, err := a.runner.Run(ctx, runCmd("systemctl", "get-default"))
 	return err == nil && strings.TrimSpace(string(res.Stdout)) == "graphical.target"
+}
+
+// allPortsTaken: every error in a joined error is netinfo.ErrPortTaken.
+func allPortsTaken(err error) bool {
+	var list []error
+	if j, ok := err.(interface{ Unwrap() []error }); ok {
+		list = j.Unwrap()
+	} else {
+		list = []error{err}
+	}
+	for _, e := range list {
+		if !errors.Is(e, netinfo.ErrPortTaken) {
+			return false
+		}
+	}
+	return len(list) > 0
+}
+
+func lanHint(router ops.PortMapper) string {
+	if u, ok := router.(interface{ LANAddress() (string, error) }); ok {
+		if ip, err := u.LANAddress(); err == nil {
+			return ip
+		}
+	}
+	return "its LAN address"
 }
