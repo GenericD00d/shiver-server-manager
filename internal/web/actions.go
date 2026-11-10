@@ -225,6 +225,9 @@ var Actions = map[string]Action{
 	"cert.switch": {Title: "Switch certificate", Build: func(c *checker) ([]string, []string) {
 		return append([]string{"cert", "switch", c.id("id"), "--tls", c.enum("tls", "letsencrypt", "selfsigned")}, when(c.flag("testMode"), "--test-mode")...), nil
 	}},
+	"cert.dnsCheck": {Title: "DNS check", Build: func(c *checker) ([]string, []string) {
+		return []string{"cert", "dns-check", c.id("id"), c.enum("check", "on", "off")}, nil
+	}},
 	"cert.retry":      {Title: "Retry certificate", Build: func(c *checker) ([]string, []string) { return []string{"cert", "retry", c.id("id")}, nil }},
 	"firewall.repair": {Title: "Repair firewall rules", Build: func(*checker) ([]string, []string) { return []string{"firewall", "repair"}, nil }},
 	"firewall.upnp": {Title: "Router port mapping", Build: func(c *checker) ([]string, []string) {

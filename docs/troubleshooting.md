@@ -17,6 +17,7 @@ Voice goes straight to each server's own port (UDP and TCP, 40000-40999), not th
 
 Certificates > Certificate status shows the last error from Caddy.
 
+- **Behind a proxy.** If the domain's A record holds the address of a proxy in front of this server, the manager's DNS check warns about it. That's fine as long as the proxy passes ports 80 and 443 through: turn the check off with `cert dns-check <id> off`. Or use a self-signed certificate (`cert switch <id> --tls selfsigned`), which never checks DNS.
 - **DNS.** The domain's A record must hold this server's public IPv4 address (Help: Point a domain at the server). If it also has an AAAA (IPv6) record, that must point here too or be removed: Let's Encrypt tries IPv6 first. Changes can take minutes to hours.
 - **Ports 80 and 443.** Let's Encrypt checks the domain over port 80 or 443 from outside. Open them in every firewall in the way, including your provider's.
 - **The weekly limit.** Let's Encrypt issues at most 5 certificates a week for the same domain. If you've been creating and deleting the same server, wait, or use Test mode (staging server, far higher limits) while experimenting.

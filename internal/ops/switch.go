@@ -83,6 +83,17 @@ func (s *Sys) otherIssuers(inst *state.Instance) []string {
 	return out
 }
 
+// SetDNSCheck turns the "does the domain point here?" check on or off for a
+// server, for a domain whose A record holds a proxy's address.
+func (s *Sys) SetDNSCheck(id string, on bool) error {
+	inst, err := s.Instance(id)
+	if err != nil {
+		return err
+	}
+	inst.SkipDNSCheck = !on
+	return s.Save()
+}
+
 // RootInfo describes the self-signed root members install.
 type RootInfo struct {
 	PEM         []byte    `json:"-"`

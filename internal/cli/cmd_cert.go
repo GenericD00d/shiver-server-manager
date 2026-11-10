@@ -141,7 +141,27 @@ func (a *App) certCmd() *cobra.Command {
 	certRoot.Flags().StringVar(&out, "out", "", "also save the root certificate to this file")
 
 	c := &cobra.Command{Use: "cert", Short: "Certificates", Args: cobra.NoArgs}
-	c.AddCommand(status, retry, certSwitch, certRoot)
+	dnsCheck := &cobra.Command{
+		Use:   "dns-check <id> on|off",
+		Short: "Turn the check that a Let's Encrypt domain points here on or off",
+		Long:  "Turn it off when the domain's A record holds the address of a proxy in front of this server; Let's Encrypt then reaches the server through the proxy. Self-signed servers never check DNS.",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[1] != "on" && args[1] != "off" {
+				return usageErr("say on or off")
+			}
+			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
+				return a.logged("cert dns-check "+args[1], args[0], func() error {
+					if err := s.SetDNSCheck(args[0], args[1] == "on"); err != nil {
+						return err
+					}
+					a.say("✓ The DNS check is %s for %s.", args[1], args[0])
+					return nil
+				})
+			})
+		},
+	}
+	c.AddCommand(status, retry, certSwitch, certRoot, dnsCheck)
 	return c
 }
 

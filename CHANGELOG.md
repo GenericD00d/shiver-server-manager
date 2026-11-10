@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 (2026-11-10)
+
+- The DNS warning during create and import now says how to stop it: `cert dns-check <id> off` when the domain points at a proxy in front of the server, or `cert switch <id> --tls selfsigned`.
+- `cert dns-check <id> on|off` (and Certificates > DNS check on the web page) turns the check on or off for an existing server.
+
 ## 0.1.1 (2026-11-10)
 
 - Setup failed with "can't read Caddy's version" when Ubuntu's own Caddy (2.6.2) was installed. It now reads that version, and offers to upgrade Caddy in place from Caddy's own repository, keeping an existing Caddyfile.

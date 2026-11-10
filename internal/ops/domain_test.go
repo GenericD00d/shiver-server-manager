@@ -93,6 +93,13 @@ func TestSkipDNSCheckForAProxy(t *testing.T) {
 	if _, err := h.s.RetryCert(ctx, "plain"); err == nil {
 		t.Fatal("retry ignored the DNS problem")
 	}
+	// Turned off afterwards, for a server that's behind a proxy after all.
+	if err := h.s.SetDNSCheck("plain", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.s.RetryCert(ctx, "plain"); err != nil {
+		t.Fatalf("retry with the check off: %v", err)
+	}
 
 	notes = nil
 	r := req("proxied")

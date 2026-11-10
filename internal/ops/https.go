@@ -110,7 +110,9 @@ func (s *Sys) stepCertificate(id string) Step {
 			inst := s.St.Instances[id]
 			if s.wantDNSCheck(inst) {
 				if r := s.DNSCheck(ctx, inst.Domain); !r.OK {
-					s.emit(Event{Instance: id, Step: "certificate", Status: "note", Detail: r.Problem})
+					s.emit(Event{Instance: id, Step: "certificate", Status: "note", Detail: r.Problem +
+						" If it points at a proxy in front of this server, that's fine: turn the check off with 'cert dns-check " + id + " off'." +
+						" For a self-signed certificate instead: 'cert switch " + id + " --tls selfsigned'."})
 				}
 			}
 			deadline := s.Now().Add(s.CertWait)

@@ -63,6 +63,7 @@ export type Server = {
   encrypted: boolean;
   settings?: Record<string, string>;
   stopped?: boolean;
+  skipDNSCheck?: boolean;
   memoryMaxMiB?: number;
   cpuPercent?: number;
   operation: { name: string; lastStep?: string; failedStep?: string; error?: string } | null;

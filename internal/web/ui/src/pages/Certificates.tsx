@@ -86,6 +86,34 @@ export function CertificatesPage() {
                       >
                         Switch type or test mode
                       </DropdownMenuItem>
+                      {s?.tls !== 'selfsigned' && (
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            run({
+                              action: 'cert.dnsCheck',
+                              title: `DNS check for ${c.domain}`,
+                              description:
+                                "Turn it off if the domain's A record holds the address of a proxy in front of this server (Let's Encrypt then reaches it through the proxy).",
+                              params: { id: c.instance },
+                              fields: [
+                                {
+                                  name: 'check',
+                                  label: 'Check that the domain points at this server',
+                                  type: 'select',
+                                  required: true,
+                                  initial: s?.skipDNSCheck ? 'off' : 'on',
+                                  options: [
+                                    { value: 'on', label: 'On' },
+                                    { value: 'off', label: 'Off (behind a proxy)' }
+                                  ]
+                                }
+                              ]
+                            })
+                          }
+                        >
+                          DNS check on or off
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Td>
