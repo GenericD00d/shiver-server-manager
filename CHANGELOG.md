@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 (2026-11-10)
 
 - Import, backup, restore and export no longer take away a file's permission to run. Plugins that keep a program in their data folder (a music bot's yt-dlp, say) failed with "EACCES: permission denied, posix_spawn" after an import or restore. For a server imported with an earlier version: `sudo find /var/lib/sharkord/<id>/plugin-data -path '*/bin/*' -type f -exec chmod 700 {} +`.
 - Help: forward each server's voice port on its own, not the whole 40000-40999 range; some routers accept a large range and silently drop it.
