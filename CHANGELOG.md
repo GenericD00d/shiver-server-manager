@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- One-click updates of the manager itself: System > Updates on the web page, or `self-update` in the terminal (`self-update --check` only looks). It downloads the latest release's package for this machine from GitHub, checks it against SHA256SUMS, and installs it with apt in a unit of its own, so the web page restarting doesn't cut the install short. Servers keep running. The health check announces new versions. While the repository is private, save a read-only GitHub token first: `self-update token` (or the GitHub token button).
 - Security: the hidden `internal-vacuum` and `internal-enable-plugins` commands now refuse to run as root. The sudoers rule lets members of `shiver-admins` run the manager as root with any arguments, and these two skipped the login, so someone using an admin's account without its password could have had root create a file of their choosing at any new path. The manager only ever runs them as a server's own user, so nothing else changes.
 
 ## 0.1.3 (2026-11-10)

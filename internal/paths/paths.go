@@ -20,6 +20,9 @@ const (
 	LoginsFile      = StateDir + "/logins.json"
 	VaultDir        = StateDir + "/vault"
 	VersionLinkDir  = StateDir + "/bin"
+	UpdatesDir      = StateDir + "/updates"
+	UpdateTokenFile = ConfigDir + "/github-token"
+	UpdateCacheFile = StateDir + "/cache/manager-release.json"
 	LockFile        = "/run/" + Cmd + ".lock"
 	LogFile         = "/var/log/" + Cmd + ".log"
 	BinaryPath      = "/usr/bin/" + Cmd

@@ -295,6 +295,15 @@ var Actions = map[string]Action{
 		}
 		return args, stdin
 	}},
+	"manager.update": {Title: "Update the manager", Build: func(*checker) ([]string, []string) {
+		return []string{"self-update", "--background"}, nil
+	}},
+	"manager.token": {Title: "GitHub token for updates", Build: func(c *checker) ([]string, []string) {
+		if c.flag("clear") {
+			return []string{"self-update", "token", "--clear"}, nil
+		}
+		return []string{"self-update", "token"}, []string{c.secret("token", true)}
+	}},
 	"alerts.test": {Title: "Send a test alert", Build: func(*checker) ([]string, []string) { return []string{"health", "alerts", "--test"}, nil }},
 }
 

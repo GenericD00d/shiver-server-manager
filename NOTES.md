@@ -56,6 +56,7 @@ Decisions made with the owner, places this build differs from `Implementation gu
 - **Import from a running Docker container:** CI covers a plain data folder and exports; try `import docker:<name>` with the official image.
 - **Sharkord update and rollback:** only one Sharkord version is tested, so `instance update` and its rollback haven't run against two real versions.
 - **UPnP on a real home router, and firewalld:** covered by unit tests only.
+- **Self-update from one real release to the next:** unit tests cover the download and checksum against a fake GitHub; the first real run is 0.1.4 to the release after it (from the web page, so the install outlives the web service's restart).
 - **Shiver's statuses and role colours in a browser:** CI checks the plugin loads and its client bundle is served.
 
 - **Interactive login on a real terminal:** CI checks logins through stdin only.

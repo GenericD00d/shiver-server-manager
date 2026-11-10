@@ -17,6 +17,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/netinfo"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
 	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
+	"github.com/GenericD00d/shiver-server-manager/internal/selfupdate"
 	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/systemd"
 )
@@ -200,6 +201,11 @@ func (s *Sys) Health(ctx context.Context, o HealthOpts) (rep Report, appeared, c
 					announce("shiver-"+rel.PluginVersion()+":"+id, "Shiver %s is out; %s has %s. Update with: shiver update %s", rel.PluginVersion(), id, m.Version, id)
 				}
 			}
+		}
+	}
+	if o.Online && s.ManagerLatest != nil {
+		if v, err := s.ManagerLatest(ctx); err == nil && selfupdate.Newer(v, s.ManagerVersion) {
+			announce("manager-"+v, "Shiver Server Manager %s is out; this is %s. Update from System > Updates on the web page, or: sudo %s self-update", v, s.ManagerVersion, paths.Cmd)
 		}
 	}
 	if o.Unattended && s.St.Settings.UPnP {

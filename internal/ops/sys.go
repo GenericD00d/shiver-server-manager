@@ -21,6 +21,7 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
 	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
 	"github.com/GenericD00d/shiver-server-manager/internal/run"
+	"github.com/GenericD00d/shiver-server-manager/internal/selfupdate"
 	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 	"github.com/GenericD00d/shiver-server-manager/internal/systemd"
@@ -91,7 +92,9 @@ type Sys struct {
 	// instance's user (copying or changing its database).
 	AsInstance     func(ctx context.Context, uid, gid int, args ...string) error
 	ManagerVersion string
-	Shiver         *plugins.Client
+	// ManagerLatest looks up the manager's latest release (nil skips it).
+	ManagerLatest func(ctx context.Context) (string, error)
+	Shiver        *plugins.Client
 	// PluginLog reads a unit's journal since a time (nil skips the check).
 	PluginLog func(ctx context.Context, unit string, since time.Time) (string, error)
 	// FindRouter finds the home router for UPnP.
@@ -127,9 +130,13 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		Fstab:          "/etc/fstab",
 		AsInstance:     runSelfAs,
 		ManagerVersion: strings.TrimPrefix(userAgent, paths.Cmd+"/"),
-		FirstStart:     sharkord.FirstStart,
-		WaitHealthy:    sharkord.WaitHealthy,
-		Healthz:        sharkord.Healthz,
+		ManagerLatest: func(ctx context.Context) (string, error) {
+			r, err := selfupdate.NewClient(userAgent, paths.UpdateTokenFile, paths.UpdateCacheFile).Latest(ctx, false)
+			return r.Version, err
+		},
+		FirstStart:  sharkord.FirstStart,
+		WaitHealthy: sharkord.WaitHealthy,
+		Healthz:     sharkord.Healthz,
 		PublicIPv4: func(ctx context.Context) (string, error) {
 			return netinfo.PublicIPv4(ctx, nil, netinfo.IPv4Sources)
 		},
