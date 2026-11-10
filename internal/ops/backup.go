@@ -137,7 +137,10 @@ func (s *Sys) Backup(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	removed, err := backup.Record(dir, backup.Entry{File: filepath.Base(file), CreatedAt: now.UTC(), Size: fi.Size(), SHA256: sum}, s.St.Settings.BackupKeep)
+	if _, err := backup.Record(dir, backup.Entry{File: filepath.Base(file), CreatedAt: now.UTC(), Size: fi.Size(), SHA256: sum}, 0); err != nil {
+		return file, err
+	}
+	removed, err := backup.Prune(dir, s.retention(s.St.Instances[id].Backups), now)
 	for _, r := range removed {
 		s.emit(Event{Instance: id, Step: "backup", Status: "note", Detail: "removed old backup " + r})
 	}

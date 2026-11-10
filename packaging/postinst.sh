@@ -18,6 +18,8 @@ if [ "$1" = configure ]; then
     # An upgrade replaces the program; the web page keeps running the old
     # one until it restarts. Only restarts it if it was already running.
     systemctl try-restart shiver-server-manager-web.service || true
+    # Pick up a changed timer schedule.
+    systemctl try-restart shiver-server-manager-backup.timer || true
   fi
   echo "Run 'sudo shiver-server-manager' to finish setting up."
 fi

@@ -15,26 +15,46 @@ import (
 
 	"github.com/GenericD00d/shiver-server-manager/internal/backup"
 	"github.com/GenericD00d/shiver-server-manager/internal/ops"
+	"github.com/GenericD00d/shiver-server-manager/internal/paths"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 )
 
 func (a *App) backupCmd() *cobra.Command {
-	var all, unattended bool
+	var all, unattended, scheduled bool
 	c := &cobra.Command{
 		Use:   "backup [<id>]",
 		Short: "Back up one server, or all of them",
-		Long:  "Backups are encrypted to the vault's public key, so making one needs no passphrase; restoring needs the vault passphrase or the recovery key. The server keeps running.",
-		Args:  cobra.MaximumNArgs(1),
+		Long: "Backups are encrypted to the vault's public key, so making one needs no passphrase; restoring needs the vault passphrase or the recovery key. The server keeps running. " +
+			"Each server's schedule and how many to keep: backup schedule <id>.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if all == (len(args) == 1) {
+			if scheduled {
+				if all || len(args) > 0 {
+					return usageErr("--scheduled takes no server ID")
+				}
+				all = true
+			} else if all == (len(args) == 1) {
 				return usageErr("give one server ID, or --all")
 			}
 			if unattended && a.needsLogin() {
 				return usageErr("--unattended is for the timer, which runs as root")
 			}
+			if scheduled {
+				// The timer runs every 5 minutes: look without the lock first,
+				// so it only waits for one when a backup is owed.
+				st, err := state.Load(paths.StateFile)
+				if err != nil {
+					return err
+				}
+				if len(ops.New(a.runner, st, a.log, paths.Cmd+"/"+a.Version).DueBackups()) == 0 {
+					return nil
+				}
+			}
 			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
 				ids := args
-				if all {
+				if scheduled {
+					ids = s.DueBackups()
+				} else if all {
 					ids = s.IDs()
 				}
 				var errs []error
@@ -67,6 +87,8 @@ func (a *App) backupCmd() *cobra.Command {
 	}
 	c.Flags().BoolVar(&all, "all", false, "back up every server")
 	c.Flags().BoolVar(&unattended, "unattended", false, "run from the timer: no login, no prompts")
+	c.Flags().BoolVar(&scheduled, "scheduled", false, "back up the servers whose schedule owes a backup (the timer)")
+	_ = c.Flags().MarkHidden("scheduled")
 
 	list := &cobra.Command{
 		Use: "list [<id>]", Short: "List a server's backups", Args: cobra.MaximumNArgs(1),
@@ -99,7 +121,7 @@ func (a *App) backupCmd() *cobra.Command {
 			})
 		},
 	}
-	c.AddCommand(list)
+	c.AddCommand(list, a.backupScheduleCmd(), a.backupDeleteCmd())
 	return c
 }
 

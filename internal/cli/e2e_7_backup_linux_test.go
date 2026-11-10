@@ -4,6 +4,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -46,6 +48,29 @@ func TestE2EBackupExportImport(t *testing.T) {
 
 	t.Run("the timer's unattended backup needs no login", func(t *testing.T) {
 		e.expect(t, 0, "", "", "backup", "--all", "--unattended")
+		e.expect(t, 0, "", "", "backup", "--scheduled", "--unattended")
+	})
+
+	t.Run("a server's own schedule, retention and deleting a backup", func(t *testing.T) {
+		e.asAdmin(t, 0, "", "backup", "chat-a")
+		e.asAdmin(t, 0, "", "backup", "schedule", "chat-a", "--times", "03:30", "--days", "mon,thu", "--keep", "2", "--yes")
+		var views []map[string]any
+		if err := json.Unmarshal([]byte(e.stdout(t, "", "backup", "schedule", "chat-a", "--json")), &views); err != nil || len(views) != 1 {
+			t.Fatalf("%v %v", views, err)
+		}
+		if v := views[0]; v["keepCount"] != float64(2) || v["backups"] != float64(2) || fmt.Sprint(v["times"]) != "[03:30]" || fmt.Sprint(v["days"]) != "[mon thu]" {
+			t.Fatalf("%v", v)
+		}
+		var list map[string][]map[string]any
+		json.Unmarshal([]byte(e.stdout(t, "", "backup", "list", "chat-a", "--json")), &list)
+		e.asAdmin(t, 0, "", "backup", "delete", "chat-a", list["chat-a"][0]["file"].(string), "--yes")
+		e.asAdmin(t, 1, "", "backup", "delete", "chat-a", "../../../etc/passwd", "--yes")
+		json.Unmarshal([]byte(e.stdout(t, "", "backup", "list", "chat-a", "--json")), &list)
+		if len(list["chat-a"]) != 1 {
+			t.Fatalf("%v", list)
+		}
+		e.asAdmin(t, 0, "", "backup", "schedule", "chat-a", "--off")
+		e.asAdmin(t, 0, "", "backup", "schedule", "chat-a", "--on", "--times", "default", "--days", "every", "--keep", "default")
 	})
 
 	exportFile := "/var/tmp/chat-b-export.tar.zst.age"

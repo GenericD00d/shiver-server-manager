@@ -1,10 +1,10 @@
 # Managed by shiver-server-manager. Do not edit.
 [Unit]
-Description=Back up every Sharkord server at 00:00 and 12:00
+Description=Back up Sharkord servers on their schedules (checked every 5 minutes)
 
 [Timer]
-OnCalendar=*-*-* 00,12:00:00
-Persistent=true
+OnCalendar=*:0/5
+AccuracySec=30s
 
 [Install]
 WantedBy=timers.target

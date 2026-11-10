@@ -195,6 +195,18 @@ var Actions = map[string]Action{
 		return []string{"instance", "update", c.id("id")}, []string{c.secret("passphrase", true)}
 	}},
 	"server.backup": {Title: "Back up", Build: func(c *checker) ([]string, []string) { return []string{"backup", c.idOrAll("id")}, nil }},
+	"backup.schedule": {Title: "Backup schedule", Build: func(c *checker) ([]string, []string) {
+		args := []string{"backup", "schedule", c.id("id")}
+		if c.flag("off") {
+			return append(args, "--off"), nil
+		}
+		args = append(args, "--on", "--times", c.line("times", true), "--days", c.line("days", true), "--keep", c.line("keep", true), "--keep-days", c.number("keepDays"))
+		return args, nil
+	}},
+	"backup.delete": {Title: "Delete a backup", Reauth: true, Build: func(c *checker) ([]string, []string) {
+		// The command only deletes files the server's backup index lists.
+		return []string{"backup", "delete", c.id("id"), c.line("file", true)}, nil
+	}},
 	"server.restore": {Title: "Restore a backup", Reauth: true, Build: func(c *checker) ([]string, []string) {
 		return []string{"restore", c.id("id"), c.absPath("file", true)}, []string{c.secret("passphrase", true)}
 	}},

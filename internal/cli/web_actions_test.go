@@ -18,6 +18,7 @@ func TestEveryWebActionIsARealCommand(t *testing.T) {
 		"passphrase": "a passphrase", "exportPassphrase": "an export passphrase", "newPassphrase": "a new passphrase",
 		"recoveryKey": "AGE-SECRET-KEY-1X", "token": "t", "webhook": "https://hooks.example.com/x", "emailTo": "a@example.com",
 		"smtp": "mail.example.com:587", "includeToken": "true", "testMode": "true", "force": "true", "skipDnsCheck": "true", "makeDefault": "true", "check": "off",
+		"times": "03:30", "days": "mon,thu", "keep": "8", "keepDays": "30",
 	}
 	app := &App{}
 	root := app.newRoot()

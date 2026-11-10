@@ -21,7 +21,7 @@ Download the .deb for your processor from the releases page, check it against `S
     sudo apt install ./shiver-server-manager_<version>_<arch>.deb
     sudo shiver-server-manager
 
-The package creates the `shiver-admins` group, the manager's folders and two timers (health check every 5 minutes, backups at 00:00 and 12:00), and a sudoers rule so admins can start the manager without a sudo password. The manager's own login is the password check.
+The package creates the `shiver-admins` group, the manager's folders and two timers (health check every 5 minutes, and backups, which run each server on its own schedule), and a sudoers rule so admins can start the manager without a sudo password. The manager's own login is the password check.
 
 ## First-time setup
 
@@ -125,7 +125,7 @@ A full container stops Sharkord saving messages; the health check warns at 80%. 
 
 ## Backups
 
-Backups run at 00:00 and 12:00 and keep the last 14 per server (one week). They're encrypted to the vault's public key, so making them needs no passphrase; restoring needs the vault passphrase or the recovery key. They're in `/var/backups/sharkord/<id>/` unless you choose another backup location. Being encrypted, they're safe to copy off the server (see Help).
+By default, backups run at 00:00 and 12:00 and keep the last 14 per server (one week). Each server can have its own schedule and retention, or none: Backups > Schedule on the web page, or `backup schedule <id>` (for example `--times 03:30 --days mon,thu --keep 8`, `--keep-days 30`, or `--off`). The newest backup is never dropped for its age, so a server whose backups are off keeps its last one. Delete single backups with Backups > Delete, or `backup delete <id> <file>`. They're encrypted to the vault's public key, so making them needs no passphrase; restoring needs the vault passphrase or the recovery key. They're in `/var/backups/sharkord/<id>/` unless you choose another backup location. Being encrypted, they're safe to copy off the server (see Help).
 
 Restoring unpacks beside the current data and swaps it in while the server is stopped; if the server doesn't start, the previous data goes back.
 

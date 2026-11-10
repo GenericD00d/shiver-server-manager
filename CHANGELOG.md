@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Each server can have its own backup schedule (times of day and days of the week), its own retention (how many to keep, and/or for how many days), or no scheduled backups at all: Backups > Schedules on the web page, or `backup schedule <id>`. A tighter limit deletes the extra backups at once, after showing which. The newest backup is never dropped for its age. The default stays 00:00 and 12:00, keeping 14.
+- Delete single backups: the bin button on Backups, or `backup delete <id> <file>`.
+- The backup timer now checks every 5 minutes and backs up the servers whose schedule owes one, catching up once after the machine was off.
+
 ## 0.1.4 (2026-11-10)
 
 - One-click updates of the manager itself: System > Updates on the web page, or `self-update` in the terminal (`self-update --check` only looks). It downloads the latest release's package for this machine from GitHub, checks it against SHA256SUMS, and installs it with apt in a unit of its own, so the web page restarting doesn't cut the install short. Servers keep running. The health check announces new versions. While the repository is private, save a read-only GitHub token first: `self-update token` (or the GitHub token button).

@@ -5,4 +5,4 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/shiver-server-manager backup --all --unattended
+ExecStart=/usr/bin/shiver-server-manager backup --scheduled --unattended

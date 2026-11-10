@@ -231,18 +231,19 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, sess *Session) {
 
 // reads are the read-only commands the page can ask for.
 var reads = map[string][]string{
-	"servers":  {"instance", "list"},
-	"certs":    {"cert", "status"},
-	"root":     {"cert", "root"},
-	"backups":  {"backup", "list"},
-	"storage":  {"storage", "list"},
-	"drives":   {"storage", "mount"},
-	"shiver":   {"shiver", "status"},
-	"firewall": {"firewall", "status"},
-	"admins":   {"admins", "list"},
-	"repair":   {"repair", "--dry-run"},
-	"alerts":   {"health", "alerts"},
-	"update":   {"self-update", "--check"},
+	"servers":         {"instance", "list"},
+	"certs":           {"cert", "status"},
+	"root":            {"cert", "root"},
+	"backups":         {"backup", "list"},
+	"storage":         {"storage", "list"},
+	"drives":          {"storage", "mount"},
+	"shiver":          {"shiver", "status"},
+	"firewall":        {"firewall", "status"},
+	"admins":          {"admins", "list"},
+	"repair":          {"repair", "--dry-run"},
+	"alerts":          {"health", "alerts"},
+	"update":          {"self-update", "--check"},
+	"backupSchedules": {"backup", "schedule"},
 }
 
 func (s *Server) globals(user string) []string {

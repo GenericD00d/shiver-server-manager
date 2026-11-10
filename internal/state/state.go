@@ -104,6 +104,20 @@ type Instance struct {
 	CPUPercent   int        `json:"cpuPercent,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	Operation    *Operation `json:"operation"`
+	// Backups is this server's own backup schedule and retention.
+	Backups BackupPolicy `json:"backups"`
+}
+
+// BackupPolicy is one server's backup schedule and retention. The zero value
+// is the default: 00:00 and 12:00 every day, keeping Settings.BackupKeep.
+type BackupPolicy struct {
+	Off   bool     `json:"off,omitempty"`
+	Times []string `json:"times,omitempty"` // "15:04", local time; empty is the default
+	Days  []string `json:"days,omitempty"`  // "mon".."sun"; empty is every day
+	// KeepCount is how many to keep: 0 is Settings.BackupKeep, -1 no limit.
+	KeepCount int `json:"keepCount,omitempty"`
+	// KeepDays drops backups older than this many days (0: no age limit).
+	KeepDays int `json:"keepDays,omitempty"`
 }
 
 type State struct {

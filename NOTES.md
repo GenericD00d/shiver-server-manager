@@ -16,7 +16,7 @@ Decisions made with the owner, places this build differs from `Implementation gu
   | "Managed by sharkord-manager" | "Managed by shiver-server-manager" |
 
   Names that describe Sharkord itself keep Sharkord's name: `sharkord@.service`, `sharkord-<id>` users, `/opt/sharkord`, `/var/lib/sharkord`, `/var/backups/sharkord`, `sharkord:<id>` firewall labels.
-- **Backups:** twice a day, at 00:00 and 12:00 (timer `OnCalendar=*-*-* 00,12:00:00`, `Persistent=true`, no random delay), keeping 14, which is one week.
+- **Backups:** by default twice a day, at 00:00 and 12:00, keeping 14 (one week). Since 0.1.5 each server has its own schedule (times and days, local time), retention (count and/or age) or none, in `state.Instance.Backups`. The timer runs `backup --scheduled` every 5 minutes; it backs up a server when its latest scheduled time has passed since its newest backup, so a missed slot (machine off) is caught up once, not once per slot. It looks without the lock first so it only waits when a backup is owed. Age retention never drops the newest backup.
 - **Other defaults:** 10 GiB containers, health check every 5 minutes (unchanged from the guide).
 - **Releases:** GitHub repository `GenericD00d/shiver-server-manager`.
 - **Sharkord versions:** only v0.0.30 on the tested list to start (plugin SDK 2).
