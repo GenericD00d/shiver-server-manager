@@ -254,8 +254,12 @@ func (s *Sys) stepImportData(id string) Step {
 				if err := s.Chown(p, uid, gid); err != nil {
 					return err
 				}
+				// Owner only, keeping whether a file can run: plugins keep
+				// programs (yt-dlp, ffmpeg) in their data folders.
 				mode := os.FileMode(0o600)
 				if d.IsDir() {
+					mode = 0o700
+				} else if fi, err := d.Info(); err == nil && fi.Mode()&0o111 != 0 {
 					mode = 0o700
 				}
 				return os.Chmod(p, mode)

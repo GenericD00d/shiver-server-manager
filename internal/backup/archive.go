@@ -151,7 +151,11 @@ func addFile(tw *tar.Writer, src, name string) error {
 		return err
 	}
 	defer f.Close()
-	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: fi.Size(), ModTime: fi.ModTime(), Typeflag: tar.TypeReg}); err != nil {
+	mode := int64(0o600)
+	if fi.Mode()&0o111 != 0 { // a program, such as a plugin's yt-dlp
+		mode = 0o700
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: fi.Size(), ModTime: fi.ModTime(), Typeflag: tar.TypeReg}); err != nil {
 		return err
 	}
 	n, err := io.Copy(tw, f)
@@ -260,7 +264,11 @@ func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 				return m, err
 			}
-			f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			perm := os.FileMode(0o600)
+			if h.Mode&0o111 != 0 {
+				perm = 0o700
+			}
+			f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
 			if err != nil {
 				return m, err
 			}

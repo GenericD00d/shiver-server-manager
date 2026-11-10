@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,9 @@ func makeData(t *testing.T) (dataPath, dbCopy string) {
 		os.MkdirAll(filepath.Dir(full), 0o700)
 		os.WriteFile(full, []byte(body), 0o600)
 	}
+	// A plugin's own program must stay runnable.
+	os.MkdirAll(filepath.Join(dataPath, "plugin-data", "music-bot", "bin"), 0o700)
+	os.WriteFile(filepath.Join(dataPath, "plugin-data", "music-bot", "bin", "yt-dlp"), []byte("#!/bin/sh\n"), 0o755)
 	db, _ := sql.Open("sqlite", "file:"+filepath.Join(dataPath, "db.sqlite"))
 	db.Exec(`PRAGMA journal_mode=WAL`)
 	db.Exec(`CREATE TABLE settings (secret_token TEXT)`)
@@ -73,6 +77,14 @@ func TestRoundTripWithVaultKey(t *testing.T) {
 	for _, skipped := range []string{"interface", "mediasoup", "logs", "backups", "db.sqlite-wal"} {
 		if _, err := os.Stat(filepath.Join(dest, skipped)); err == nil {
 			t.Errorf("%s should be left out", skipped)
+		}
+	}
+	if runtime.GOOS != "windows" {
+		if fi, err := os.Stat(filepath.Join(dest, "plugin-data/music-bot/bin/yt-dlp")); err != nil || fi.Mode().Perm() != 0o700 {
+			t.Errorf("plugin program: %v %v", fi, err)
+		}
+		if fi, err := os.Stat(filepath.Join(dest, "config.ini")); err != nil || fi.Mode().Perm() != 0o600 {
+			t.Errorf("config.ini: %v %v", fi, err)
 		}
 	}
 	db, _ := sql.Open("sqlite", "file:"+filepath.Join(dest, "db.sqlite"))
