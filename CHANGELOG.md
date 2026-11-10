@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Security: the hidden `internal-vacuum` and `internal-enable-plugins` commands now refuse to run as root. The sudoers rule lets members of `shiver-admins` run the manager as root with any arguments, and these two skipped the login, so someone using an admin's account without its password could have had root create a file of their choosing at any new path. The manager only ever runs them as a server's own user, so nothing else changes.
+
 ## 0.1.3 (2026-11-10)
 
 - Import, backup, restore and export no longer take away a file's permission to run. Plugins that keep a program in their data folder (a music bot's yt-dlp, say) failed with "EACCES: permission denied, posix_spawn" after an import or restore. For a server imported with an earlier version: `sudo find /var/lib/sharkord/<id>/plugin-data -path '*/bin/*' -type f -exec chmod 700 {} +`.

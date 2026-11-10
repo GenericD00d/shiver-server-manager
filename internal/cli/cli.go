@@ -123,8 +123,23 @@ func exitCode(err error) int {
 	return ExitError
 }
 
-// noRootNeeded lists commands that work as any user and on any OS.
+// noRootNeeded lists commands that work as any user and on any OS. The
+// internal ones go further and refuse root: see refuseRoot.
 var noRootNeeded = map[string]bool{"version": true, "help": true, "completion": true, "internal-vacuum": true, "internal-enable-plugins": true}
+
+// isRoot is sysenv.IsRoot, swappable in tests.
+var isRoot = sysenv.IsRoot
+
+// refuseRoot keeps the hidden internal-* commands out of reach through the
+// sudoers rule. The manager only starts them itself, as a server's own user
+// (ops.runSelfAs); run as root, they would read and write any path the
+// caller names, without the admin login.
+func refuseRoot() error {
+	if isRoot() {
+		return usageErr("internal commands only run as a server's own user, started by %s itself", paths.Cmd)
+	}
+	return nil
+}
 
 func (a *App) newRoot() *cobra.Command {
 	root := &cobra.Command{

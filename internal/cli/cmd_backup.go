@@ -359,10 +359,15 @@ func (a *App) instanceUpdate() *cobra.Command {
 }
 
 // internalVacuumCmd is run by the manager itself, as an instance's user,
-// to copy its live database (see ops.vacuumAs).
+// to copy its live database (see ops.runSelfAs). It refuses root.
 func (a *App) internalVacuumCmd() *cobra.Command {
 	return &cobra.Command{
 		Use: "internal-vacuum <src> <dst>", Hidden: true, Args: cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) error { return backup.Vacuum(args[0], args[1]) },
+		RunE: func(_ *cobra.Command, args []string) error {
+			if err := refuseRoot(); err != nil {
+				return err
+			}
+			return backup.Vacuum(args[0], args[1])
+		},
 	}
 }

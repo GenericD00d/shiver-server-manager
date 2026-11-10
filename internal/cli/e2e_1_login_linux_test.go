@@ -85,6 +85,23 @@ func TestE2ELoginAndVault(t *testing.T) {
 		}
 	})
 
+	t.Run("internal commands refused through sudo", func(t *testing.T) {
+		// The sudoers rule lets admins run the binary as root with any
+		// arguments; the hidden commands must not be a way past the login.
+		dst := t.TempDir() + "/copy.sqlite"
+		for _, args := range [][]string{
+			{"internal-vacuum", "/nonexistent.sqlite", dst},
+			{"internal-enable-plugins", "/nonexistent.sqlite"},
+		} {
+			if out := e.expect(t, ExitUsage, admin, "", args...); !strings.Contains(out, "own user") {
+				t.Fatalf("%v output: %s", args, out)
+			}
+		}
+		if _, err := os.Stat(dst); !os.IsNotExist(err) {
+			t.Fatalf("internal-vacuum wrote %s", dst)
+		}
+	})
+
 	t.Run("no terminal and no stdin flag", func(t *testing.T) {
 		e.expect(t, ExitAuth, admin, "", "admins", "list")
 	})

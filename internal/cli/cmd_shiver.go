@@ -100,10 +100,15 @@ func (a *App) shiverCmd() *cobra.Command {
 }
 
 // internalEnablePluginsCmd is run by the manager itself, as an instance's
-// user, to switch plugins on in its stopped database.
+// user, to switch plugins on in its stopped database. It refuses root.
 func (a *App) internalEnablePluginsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use: "internal-enable-plugins <db>", Hidden: true, Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error { return plugins.EnableInDB(args[0]) },
+		RunE: func(_ *cobra.Command, args []string) error {
+			if err := refuseRoot(); err != nil {
+				return err
+			}
+			return plugins.EnableInDB(args[0])
+		},
 	}
 }
