@@ -39,6 +39,23 @@ func FindRouter(ctx context.Context) (*UPnP, error) {
 	if c, _, err := internetgateway2.NewWANPPPConnection1ClientsCtx(ctx); err == nil && len(c) > 0 {
 		return &UPnP{router: c[0], host: c[0].Location.Host}, nil
 	}
+	// No answer to the multicast search: ask the default gateway directly
+	// (see ssdp.go for why the answers can go missing).
+	if gw, err := DefaultGateway(); err == nil {
+		if loc, err := searchUnicast(ctx, gw, "urn:schemas-upnp-org:device:InternetGatewayDevice:2"); err == nil {
+			if c, err := internetgateway2.NewWANIPConnection2ClientsByURLCtx(ctx, loc); err == nil && len(c) > 0 {
+				return &UPnP{router: c[0], host: c[0].Location.Host}, nil
+			}
+		}
+		if loc, err := searchUnicast(ctx, gw, "urn:schemas-upnp-org:device:InternetGatewayDevice:1"); err == nil {
+			if c, err := internetgateway2.NewWANIPConnection1ClientsByURLCtx(ctx, loc); err == nil && len(c) > 0 {
+				return &UPnP{router: c[0], host: c[0].Location.Host}, nil
+			}
+			if c, err := internetgateway2.NewWANPPPConnection1ClientsByURLCtx(ctx, loc); err == nil && len(c) > 0 {
+				return &UPnP{router: c[0], host: c[0].Location.Host}, nil
+			}
+		}
+	}
 	return nil, ErrNoRouter
 }
 
