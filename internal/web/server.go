@@ -62,6 +62,8 @@ type Server struct {
 	// HealthFile and RootCert are read directly.
 	HealthFile string
 	RootCert   string
+	// UploadsDir holds files uploaded for an action (empty: no uploads).
+	UploadsDir string
 }
 
 // Handler routes every request.
@@ -75,6 +77,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/root.crt", s.authed(s.rootCert))
 	mux.HandleFunc("POST /api/actions/{name}", s.authed(s.action))
 	mux.HandleFunc("POST /api/token", s.authed(s.token))
+	mux.HandleFunc("POST /api/upload", s.authed(s.upload))
 	mux.HandleFunc("GET /api/jobs", s.authed(s.jobs))
 	mux.HandleFunc("GET /api/jobs/{id}/events", s.authed(s.events))
 	if s.Static != nil {
@@ -244,6 +247,7 @@ var reads = map[string][]string{
 	"alerts":          {"health", "alerts"},
 	"update":          {"self-update", "--check"},
 	"backupSchedules": {"backup", "schedule"},
+	"plugins":         {"plugin", "list"},
 }
 
 func (s *Server) globals(user string) []string {

@@ -8,6 +8,9 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -41,11 +44,12 @@ func (f fakePAM) Authenticate(user string, p auth.Prompter) error {
 }
 
 type harness struct {
-	srv    *httptest.Server
-	client *http.Client
-	mu     sync.Mutex
-	ran    [][]string
-	stdins [][]string
+	uploads string
+	srv     *httptest.Server
+	client  *http.Client
+	mu      sync.Mutex
+	ran     [][]string
+	stdins  [][]string
 }
 
 // commands returns what ran, under the lock (jobs run in goroutines).
@@ -84,8 +88,9 @@ func newHarness(t *testing.T, needCode bool) *harness {
 			return (&auth.Login{Auth: fakePAM{needCode}, IsAdmin: func(u string) (bool, error) { return u == "alice", nil }}).Run(user, p)
 		},
 		LogFile: t.TempDir() + "/log", Static: fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}},
-		Hosts: []string{"admin.example.com"},
+		Hosts: []string{"admin.example.com"}, UploadsDir: filepath.Join(t.TempDir(), "uploads"),
 	}
+	h.uploads = s.UploadsDir
 	h.srv = httptest.NewServer(s.Handler())
 	t.Cleanup(h.srv.Close)
 	jar, _ := cookiejar.New(nil)
@@ -340,5 +345,57 @@ func TestDataReads(t *testing.T) {
 	}
 	if resp, _ := h.do(t, "GET", "/api/data/"+url.PathEscape("../etc"), nil, nil); resp.StatusCode != 404 {
 		t.Fatal("unknown read allowed")
+	}
+}
+
+func (h *harness) upload(t *testing.T, name, body string, guarded bool) (int, map[string]any) {
+	t.Helper()
+	req, _ := http.NewRequest("POST", h.srv.URL+"/api/upload?name="+url.QueryEscape(name), strings.NewReader(body))
+	if guarded {
+		req.Header.Set("X-Requested-By", paths.Cmd)
+	}
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]any
+	json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+func TestUpload(t *testing.T) {
+	h := newHarness(t, false)
+	if code, _ := h.upload(t, "p.zip", "x", true); code != http.StatusUnauthorized {
+		t.Fatalf("logged out: %d", code)
+	}
+	h.login(t)
+	if code, _ := h.upload(t, "p.zip", "x", false); code != http.StatusForbidden {
+		t.Fatalf("no header: %d", code)
+	}
+	if code, _ := h.upload(t, "p.exe", "x", true); code != http.StatusBadRequest {
+		t.Fatalf("an .exe: %d", code)
+	}
+	code, out := h.upload(t, "Music-Bot.TAR.GZ", "archive bytes", true)
+	if code != 200 {
+		t.Fatalf("%d %v", code, out)
+	}
+	p, _ := out["path"].(string)
+	if filepath.Dir(p) != h.uploads || !strings.HasSuffix(p, ".tar.gz") {
+		t.Fatalf("path %q", p)
+	}
+	if b, _ := os.ReadFile(p); string(b) != "archive bytes" {
+		t.Fatalf("%q", b)
+	}
+	if runtime.GOOS != "windows" {
+		if fi, _ := os.Stat(p); fi.Mode().Perm() != 0o600 {
+			t.Fatalf("mode %v", fi.Mode())
+		}
+	}
+	if code, _ := h.upload(t, "big.zip", strings.Repeat("x", MaxUpload+1), true); code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("too big: %d", code)
+	}
+	if entries, _ := os.ReadDir(h.uploads); len(entries) != 1 {
+		t.Fatalf("left %v", entries)
 	}
 }

@@ -36,6 +36,7 @@ func TestDemo(t *testing.T) {
 		"admins list":         `{"admins":["admin","sam"]}`,
 		"repair":              `[]`,
 		"backup schedule":     `[{"instance":"chat-a","off":false,"times":["00:00","12:00"],"days":[],"keepCount":14,"keepDays":0,"default":true,"next":"2026-11-10T00:00:00Z","backups":2},{"instance":"gaming","off":false,"times":["03:30"],"days":["mon","thu"],"keepCount":8,"keepDays":30,"default":false,"next":"2026-11-12T03:30:00Z","backups":1},{"instance":"family","off":true,"times":["00:00","12:00"],"days":[],"keepCount":14,"keepDays":0,"default":false,"backups":0}]`,
+		"plugin list":         `[{"instance":"chat-a","plugins":[{"id":"music-bot","name":"Music bot","author":"someone","description":"x","version":"1.2.0","sdkVersion":2},{"id":"shiver","name":"Shiver","author":"Shiver","description":"x","version":"0.3.2","sdkVersion":2}]},{"instance":"gaming","plugins":[]},{"instance":"family","plugins":[]}]`,
 		"self-update --check": `{"current":"0.1.4","latest":"0.1.5","available":true,"hasToken":true}`,
 		"health alerts":       `{"configured":true,"webhook":"https://discord.com/api/webhooks/…","emailTo":"","smtp":"","smtpUser":"","emailFrom":""}`,
 	}

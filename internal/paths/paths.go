@@ -21,6 +21,7 @@ const (
 	VaultDir        = StateDir + "/vault"
 	VersionLinkDir  = StateDir + "/bin"
 	UpdatesDir      = StateDir + "/updates"
+	UploadsDir      = StateDir + "/uploads"
 	UpdateTokenFile = ConfigDir + "/github-token"
 	UpdateCacheFile = StateDir + "/cache/manager-release.json"
 	LockFile        = "/run/" + Cmd + ".lock"

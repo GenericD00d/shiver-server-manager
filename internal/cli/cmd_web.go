@@ -64,6 +64,7 @@ func (a *App) webCmd() *cobra.Command {
 					return (&auth.Login{Auth: auth.PAM{Service: paths.PAMService}, Throttle: &auth.Throttle{Path: paths.LoginsFile}}).Run(user, p)
 				},
 				LogFile:    paths.LogFile,
+				UploadsDir: paths.UploadsDir,
 				Hosts:      hosts,
 				Static:     web.StaticFS(),
 				HealthFile: paths.HealthFile,

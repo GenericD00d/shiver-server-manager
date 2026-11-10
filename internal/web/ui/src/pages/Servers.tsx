@@ -18,6 +18,8 @@ import { Input } from '../components/input';
 import { Label } from '../components/label';
 import { useData } from '../hooks';
 
+type PluginList = { instance: string; plugins: { id: string; name: string; version: string; author: string }[] };
+
 const tlsOptions = [
   { value: 'letsencrypt', label: "Let's Encrypt (trusted everywhere; needs ports 80 and 443 open)" },
   { value: 'selfsigned', label: 'Self-signed (members install a root certificate)' }
@@ -27,6 +29,7 @@ export function ServersPage({ meta }: PageProps) {
   const { run, jobsChanged } = useActions();
   const servers = useData<Server[]>('servers', jobsChanged);
   const health = useData<Health>('health', jobsChanged);
+  const pluginLists = useData<PluginList[] | null>('plugins', jobsChanged);
   const storage = useData<{ locations: { path: string; default?: boolean }[] }>('storage', jobsChanged);
   const locations = storage.data?.locations ?? [];
   const defaultLocation = locations.find((l) => l.default)?.path ?? '';
@@ -130,6 +133,33 @@ export function ServersPage({ meta }: PageProps) {
           ))}
         </Table>
       </Section>
+      <Section
+        title="Plugins"
+        description="Installed on each server. Install one from a file with a server's menu (…); remove one in Sharkord's own Settings > Plugins."
+        actions={<Reload onClick={pluginLists.reload} loading={pluginLists.loading} />}
+      >
+        <Problem error={pluginLists.error} />
+        <Table
+          head={['Server', 'Plugin', 'Version', 'Author']}
+          empty={
+            (pluginLists.data ?? []).every((l) => l.plugins.length === 0) &&
+            !pluginLists.loading && <p className="text-muted-foreground py-6 text-center text-sm">No plugins installed.</p>
+          }
+        >
+          {(pluginLists.data ?? []).flatMap((l) =>
+            l.plugins.map((p) => (
+              <tr key={l.instance + p.id}>
+                <Td className="font-medium">{l.instance}</Td>
+                <Td>
+                  {p.name || p.id} <span className="text-muted-foreground font-mono text-xs">{p.id}</span>
+                </Td>
+                <Td className="text-muted-foreground">{p.version}</Td>
+                <Td className="text-muted-foreground">{p.author}</Td>
+              </tr>
+            ))
+          )}
+        </Table>
+      </Section>
       {tokenFor && <TokenDialog id={tokenFor} onClose={() => setTokenFor(null)} />}
     </>
   );
@@ -217,6 +247,14 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
             fields: [{ name: 'size', label: 'New size (GiB)', type: 'number', required: true }, passphrase]
           })}
         <DropdownMenuSeparator />
+        {item('Install a plugin from a file', {
+          action: 'plugin.install',
+          title: `Install a plugin on ${s.id}`,
+          confirmLabel: 'Install',
+          description:
+            'A Sharkord plugin as a .zip or .tar (.tar.gz, .tar.zst): manifest.json, server/index.js and client/index.js. The server is backed up and restarted; if Sharkord can’t load the plugin, the previous copy comes back. Only install plugins you trust: they run inside Sharkord with access to its data.',
+          fields: [{ name: 'file', label: 'Plugin file (up to 100 MB)', type: 'file', accept: '.zip,.tar,.gz,.tgz,.zst,.tzst', required: true }]
+        })}
         {item('Install or update Shiver', { action: 'shiver.install', title: `Shiver on ${s.id}`, description: 'Backs up, installs the latest Shiver plugin, and restarts; the previous copy comes back if Sharkord can’t load it.' })}
         <DropdownMenuItem onSelect={onShowToken}>
           <Eye /> Show secret token

@@ -12,7 +12,8 @@ import { Switch } from './components/switch';
 export type Field = {
   name: string;
   label: string;
-  type?: 'text' | 'password' | 'number' | 'select' | 'switch';
+  type?: 'text' | 'password' | 'number' | 'select' | 'switch' | 'file';
+  accept?: string; // file fields: the types offered
   options?: { value: string; label: string }[];
   help?: string;
   placeholder?: string;
@@ -55,8 +56,40 @@ export function ActionProvider({ reauth, children }: { reauth: Record<string, bo
   );
 }
 
-function FieldInput({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
+// upload sends a file to the back end, which keeps it for the action and
+// returns its path on the server.
+async function upload(file: File): Promise<string> {
+  const res = await fetch(`/api/upload?name=${encodeURIComponent(file.name)}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-Requested-By': 'shiver-server-manager' },
+    body: file
+  });
+  const data = (await res.json().catch(() => ({}))) as { path?: string; error?: string };
+  if (!res.ok || !data.path) throw new ApiError(res.status, { error: data.error ?? `upload failed (${res.status})` });
+  return data.path;
+}
+
+function FieldInput({ f, value, onChange, onFile }: { f: Field; value: string; onChange: (v: string) => void; onFile?: (file: File | null) => void }) {
   const id = `field-${f.name}`;
+  if (f.type === 'file') {
+    return (
+      <div className="grid gap-1.5">
+        <Label htmlFor={id}>{f.label}</Label>
+        <Input
+          id={id}
+          type="file"
+          accept={f.accept}
+          onChange={(e) => {
+            const file = e.target.files?.[0] ?? null;
+            onFile?.(file);
+            onChange(file?.name ?? '');
+          }}
+        />
+        {f.help && <p className="text-muted-foreground text-xs">{f.help}</p>}
+      </div>
+    );
+  }
   if (f.type === 'switch') {
     return (
       <div className="flex items-center justify-between gap-4">
@@ -104,6 +137,7 @@ function ActionDialog({ spec, needsPassword, onClose, onFinished }: { spec: Acti
     Object.fromEntries((spec.fields ?? []).map((f) => [f.name, f.initial ?? (f.type === 'switch' ? 'false' : '')]))
   );
   const [password, setPassword] = useState('');
+  const [files, setFiles] = useState<Record<string, File | null>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
@@ -114,8 +148,13 @@ function ActionDialog({ spec, needsPassword, onClose, onFinished }: { spec: Acti
     setBusy(true);
     setError(null);
     try {
+      const uploaded: Record<string, string> = {};
+      for (const f of spec.fields ?? []) {
+        const file = files[f.name];
+        if (f.type === 'file' && file) uploaded[f.name] = await upload(file);
+      }
       const j = await api.post<Job>(`/api/actions/${spec.action}`, {
-        params: { ...values, ...spec.params },
+        params: { ...values, ...uploaded, ...spec.params },
         password: needsPassword ? password : undefined
       });
       setJob(j);
@@ -145,7 +184,13 @@ function ActionDialog({ spec, needsPassword, onClose, onFinished }: { spec: Acti
             }}
           >
             {(spec.fields ?? []).map((f) => (
-              <FieldInput key={f.name} f={f} value={values[f.name] ?? ''} onChange={(v) => setValues((s) => ({ ...s, [f.name]: v }))} />
+              <FieldInput
+                key={f.name}
+                f={f}
+                value={values[f.name] ?? ''}
+                onChange={(v) => setValues((s) => ({ ...s, [f.name]: v }))}
+                onFile={(file) => setFiles((s) => ({ ...s, [f.name]: file }))}
+              />
             ))}
             {needsPassword && (
               <FieldInput

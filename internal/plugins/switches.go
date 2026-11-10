@@ -8,12 +8,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// EnableInDB switches plugins on for the server and Shiver itself, in
+// EnableInDB switches plugins on for the server and the plugin itself, in
 // Sharkord's database. Both are off by default. This is the one place the
 // manager writes to Sharkord's database: only with the instance stopped,
 // after a backup, on a tested Sharkord version, and after checking the
 // columns exist. The manager runs it as the instance's own user.
-func EnableInDB(dbPath string) error {
+func EnableInDB(dbPath, pluginID string) error {
+	if !idRE.MatchString(pluginID) {
+		return fmt.Errorf("bad plugin id %q", pluginID)
+	}
 	db, err := sql.Open("sqlite", "file:"+dbPath)
 	if err != nil {
 		return err
@@ -34,7 +37,7 @@ func EnableInDB(dbPath string) error {
 		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO plugin_data (plugin_id, enabled, settings) VALUES (?, 1, '{}')
-		ON CONFLICT(plugin_id) DO UPDATE SET enabled = 1`, ID); err != nil {
+		ON CONFLICT(plugin_id) DO UPDATE SET enabled = 1`, pluginID); err != nil {
 		return err
 	}
 	return tx.Commit()

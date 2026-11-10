@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -50,6 +51,34 @@ func TestE2EShiver(t *testing.T) {
 		out = e.asAdmin(t, ExitError, "", "shiver", "update", "--all")
 		if !strings.Contains(out, "already has Shiver") {
 			t.Fatalf("update --all:\n%s", out)
+		}
+	})
+
+	t.Run("a plugin from a tar.gz file", func(t *testing.T) {
+		// Shiver again, packed as a tarball, through the generic install.
+		data := e.serverInfo(t, id)["dataPath"].(string)
+		archive := "/var/tmp/shiver-plugin.tar.gz"
+		if out, err := exec.Command("tar", "-czf", archive, "-C", data+"/plugins", "shiver").CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+		before := time.Now()
+		e.asAdmin(t, 0, "", "plugin", "install", id, archive)
+		journal, _ := exec.Command("journalctl", "-u", "sharkord@"+id, "--since", before.Format("2006-01-02 15:04:05"), "-o", "cat", "--no-pager").CombinedOutput()
+		if !strings.Contains(string(journal), "Plugin loaded: shiver@v") {
+			t.Fatalf("Sharkord didn't load the plugin:\n%s", journal)
+		}
+		var lists []struct {
+			Instance string
+			Plugins  []struct{ ID, Version string }
+		}
+		if err := json.Unmarshal([]byte(e.stdout(t, "", "plugin", "list", id, "--json")), &lists); err != nil || len(lists) != 1 || len(lists[0].Plugins) != 1 || lists[0].Plugins[0].ID != "shiver" {
+			t.Fatalf("%+v %v", lists, err)
+		}
+		// Not a plugin: refused, and the server keeps running.
+		exec.Command("sh", "-c", "echo hi > /var/tmp/notes.txt && tar -czf /var/tmp/not-a-plugin.tar.gz -C /var/tmp notes.txt").Run()
+		e.asAdmin(t, ExitError, "", "plugin", "install", id, "/var/tmp/not-a-plugin.tar.gz")
+		if err := sharkord.Healthz(context.Background(), port); err != nil {
+			t.Fatal(err)
 		}
 	})
 }

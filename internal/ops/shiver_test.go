@@ -1,8 +1,10 @@
 package ops
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -106,5 +108,64 @@ func TestInstallAndUpdateShiver(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(filepath.Join(data, "plugins")); len(entries) != 1 {
 		t.Fatalf("leftovers in plugins/: %v", entries)
+	}
+}
+
+func pluginTarGz(t *testing.T, id, version string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	for _, f := range [][2]string{
+		{id + "/manifest.json", fmt.Sprintf(`{"id":%q,"name":"Music bot","author":"x","description":"x","version":%q,"sdkVersion":2}`, id, version)},
+		{id + "/server/index.js", "//"},
+		{id + "/client/index.js", "//"},
+	} {
+		tw.WriteHeader(&tar.Header{Name: f[0], Mode: 0o644, Size: int64(len(f[1])), Typeflag: tar.TypeReg})
+		tw.Write([]byte(f[1]))
+	}
+	tw.Close()
+	gw.Close()
+	p := filepath.Join(t.TempDir(), id+".tar.gz")
+	os.WriteFile(p, buf.Bytes(), 0o600)
+	return p
+}
+
+func TestInstallPluginFile(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.s.Create(ctx, req("chat-a")); err != nil {
+		t.Fatal(err)
+	}
+	journal := "[info] Plugin loaded: music-bot@v1.0.0 by x"
+	h.s.PluginLog = func(context.Context, string, time.Time) (string, error) { return journal, nil }
+	data := h.s.St.Instances["chat-a"].DataPath
+
+	m, _, err := h.s.InstallPluginFile(ctx, "chat-a", pluginTarGz(t, "music-bot", "1.0.0"))
+	if err != nil || m.ID != "music-bot" {
+		t.Fatalf("%+v %v", m, err)
+	}
+	if got, ok := plugins.InstalledPlugin(data, "music-bot"); !ok || got.Version != "1.0.0" {
+		t.Fatalf("%+v %v", got, ok)
+	}
+	// An update that doesn't load puts 1.0.0 back.
+	journal = "[error] Failed to load plugin music-bot: boom"
+	if _, _, err := h.s.InstallPluginFile(ctx, "chat-a", pluginTarGz(t, "music-bot", "1.1.0")); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("%v", err)
+	}
+	if got, _ := plugins.InstalledPlugin(data, "music-bot"); got.Version != "1.0.0" {
+		t.Fatalf("not put back: %+v", got)
+	}
+	// "music-bot" failing mustn't be read as "music-bot-2" failing, or the
+	// other way round.
+	journal = "[error] Failed to load plugin music-bot: old\n[info] Plugin loaded: music-bot-2@v1.0.0 by x"
+	if _, _, err := h.s.InstallPluginFile(ctx, "chat-a", pluginTarGz(t, "music-bot-2", "1.0.0")); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := h.s.Plugins("chat-a"); len(list) != 2 {
+		t.Fatalf("%+v", list)
+	}
+	if _, _, err := h.s.InstallPluginFile(ctx, "chat-a", pluginTarGz(t, "Bad..Id", "1.0.0")); err == nil {
+		t.Fatal("a bad id was installed")
 	}
 }

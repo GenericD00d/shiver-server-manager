@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Install any Sharkord plugin from a .zip or .tar (.tar.gz, .tar.zst) file: a server's menu > Install a plugin from a file on the web page (the file is uploaded), or `plugin install <id> <file>`. Like Shiver, the server is backed up first, the plugin is switched on, and the previous copy comes back if Sharkord can't load it. Files that can run (a bundled helper program) stay runnable. `plugin list` and Servers > Plugins show what each server has.
+
 ## 0.1.5 (2026-11-10)
 
 - Each server can have its own backup schedule (times of day and days of the week), its own retention (how many to keep, and/or for how many days), or no scheduled backups at all: Backups > Schedules on the web page, or `backup schedule <id>`. A tighter limit deletes the extra backups at once, after showing which. The newest backup is never dropped for its age. The default stays 00:00 and 12:00, keeping 14.

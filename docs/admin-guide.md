@@ -133,6 +133,10 @@ Restoring unpacks beside the current data and swaps it in while the server is st
 
 Servers > Install Shiver installs the server half of [Shiver](https://github.com/GenericD00d/Shiver) in one step: the plugin from the latest Shiver release, checked against that release's checksums and its manifest, with plugins switched on. The server is backed up and restarted, and if Sharkord can't load the plugin the previous copy goes back. The health check says when a new version is out. Remove it in Sharkord's own Settings > Plugins, which also deletes the data Shiver keeps for each user.
 
+
+## Other plugins
+
+Servers > (a server's menu) > Install a plugin from a file uploads a Sharkord plugin as a .zip or .tar (.tar.gz, .tar.zst) and installs it the same way as Shiver: the archive must hold manifest.json, server/index.js and client/index.js (at the top or in one folder) and speak the plugin SDK of the server's Sharkord; the server is backed up, the plugin is swapped in while it's stopped and switched on, and if Sharkord can't load it the previous copy goes back. From the terminal: `plugin install <id> <file>`; `plugin list` shows what each server has. Only install plugins you trust: they run inside Sharkord with access to its data. Remove one in Sharkord's own Settings > Plugins.
 ## Health check and repair
 
 The health check runs every 5 minutes and from System > Health check: servers running and answering, encrypted servers waiting to be unlocked, container use, certificates (including renewals failing) and the self-signed root's expiry, the public address (when it changes, every server is restarted to announce the new one), firewall rules, site files, Caddy, free space and missing drives, and new Sharkord and Shiver versions. Set `health alerts --webhook <url>` or `--email-to ... --smtp host:port` to be told when problems appear and clear.

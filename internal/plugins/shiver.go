@@ -3,7 +3,6 @@
 package plugins
 
 import (
-	"archive/zip"
 	"bufio"
 	"bytes"
 	"context"
@@ -15,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -45,13 +43,25 @@ var versionRE = regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9-.]+)?$`)
 
 // Check verifies a manifest is Shiver's and speaks sdk.
 func (m Manifest) Check(sdk int) error {
-	switch {
-	case m.ID != ID:
+	if m.ID != ID {
 		return fmt.Errorf("the plugin's id is %q, not %q", m.ID, ID)
+	}
+	return m.Valid(sdk)
+}
+
+// idRE: a plugin ID is also its folder's name under plugins/.
+var idRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+
+// Valid verifies any plugin's manifest: a safe ID, a version, and the SDK
+// the server's Sharkord speaks.
+func (m Manifest) Valid(sdk int) error {
+	switch {
+	case !idRE.MatchString(m.ID) || strings.Contains(m.ID, ".."):
+		return fmt.Errorf("the plugin's id %q isn't valid (lowercase letters, digits, dots, dashes and underscores)", m.ID)
 	case !versionRE.MatchString(m.Version):
 		return fmt.Errorf("the plugin's version %q isn't valid", m.Version)
 	case m.SDKVersion != sdk:
-		return fmt.Errorf("this Shiver needs plugin SDK %d, but the server's Sharkord speaks SDK %d", m.SDKVersion, sdk)
+		return fmt.Errorf("the plugin %s needs plugin SDK %d, but the server's Sharkord speaks SDK %d", m.ID, m.SDKVersion, sdk)
 	}
 	return nil
 }
@@ -194,73 +204,6 @@ func (c *Client) Download(ctx context.Context, r Release) ([]byte, error) {
 	return zb, nil
 }
 
-// Unpack extracts the zip into dest, accepting only plain files and folders
-// with relative paths (no "..", no links), and returns the folder holding
-// the plugin: dest itself, or the one folder inside it with manifest.json,
-// server/index.js and client/index.js, as Sharkord's own installer accepts.
-func Unpack(zb []byte, dest string) (string, Manifest, error) {
-	var m Manifest
-	zr, err := zip.NewReader(bytes.NewReader(zb), int64(len(zb)))
-	if err != nil {
-		return "", m, fmt.Errorf("the plugin isn't a valid zip: %w", err)
-	}
-	var total int64
-	for _, f := range zr.File {
-		name := f.Name
-		clean := path.Clean(name)
-		if strings.Contains(name, "\\") || path.IsAbs(name) || clean == ".." || strings.HasPrefix(clean, "../") {
-			return "", m, fmt.Errorf("unsafe path %q in the plugin zip", name)
-		}
-		mode := f.Mode()
-		target := filepath.Join(dest, filepath.FromSlash(clean))
-		switch {
-		case mode.IsDir():
-			if err := os.MkdirAll(target, 0o700); err != nil {
-				return "", m, err
-			}
-			continue
-		case !mode.IsRegular():
-			return "", m, fmt.Errorf("%q in the plugin zip isn't a plain file", name)
-		}
-		total += int64(f.UncompressedSize64)
-		if total > 100<<20 {
-			return "", m, errors.New("the plugin unpacks to more than 100 MB")
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-			return "", m, err
-		}
-		rc, err := f.Open()
-		if err != nil {
-			return "", m, err
-		}
-		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err != nil {
-			rc.Close()
-			return "", m, err
-		}
-		_, err = io.Copy(out, io.LimitReader(rc, 100<<20))
-		rc.Close()
-		if cerr := out.Close(); err == nil {
-			err = cerr
-		}
-		if err != nil {
-			return "", m, err
-		}
-	}
-	root, err := pluginRoot(dest)
-	if err != nil {
-		return "", m, err
-	}
-	b, err := os.ReadFile(filepath.Join(root, "manifest.json"))
-	if err != nil {
-		return "", m, err
-	}
-	if err := json.Unmarshal(b, &m); err != nil {
-		return "", m, fmt.Errorf("the plugin's manifest.json isn't valid: %w", err)
-	}
-	return root, m, nil
-}
-
 func hasStructure(dir string) bool {
 	for _, f := range []string{"manifest.json", "server/index.js", "client/index.js"} {
 		if fi, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(f))); err != nil || !fi.Mode().IsRegular() {
@@ -288,15 +231,18 @@ func pluginRoot(dir string) (string, error) {
 	case 1:
 		return found[0], nil
 	case 0:
-		return "", errors.New("the zip doesn't hold a plugin (manifest.json, server/index.js and client/index.js)")
+		return "", errors.New("the archive doesn't hold a plugin (manifest.json, server/index.js and client/index.js)")
 	}
-	return "", errors.New("the zip holds more than one plugin")
+	return "", errors.New("the archive holds more than one plugin")
 }
 
 // Installed reads an instance's installed Shiver manifest, if any.
-func Installed(dataPath string) (Manifest, bool) {
+func Installed(dataPath string) (Manifest, bool) { return InstalledPlugin(dataPath, ID) }
+
+// InstalledPlugin reads an installed plugin's manifest, if any.
+func InstalledPlugin(dataPath, id string) (Manifest, bool) {
 	var m Manifest
-	b, err := os.ReadFile(filepath.Join(dataPath, "plugins", ID, "manifest.json"))
+	b, err := os.ReadFile(filepath.Join(dataPath, "plugins", id, "manifest.json"))
 	if err != nil || json.Unmarshal(b, &m) != nil {
 		return m, false
 	}

@@ -453,7 +453,7 @@ func runSelfAsInProcess(args ...string) error {
 	case "internal-vacuum":
 		return backup.Vacuum(args[1], args[2])
 	case "internal-enable-plugins":
-		return plugins.EnableInDB(args[1])
+		return plugins.EnableInDB(args[1], args[2])
 	}
 	return fmt.Errorf("unknown internal command %s", args[0])
 }

@@ -121,7 +121,7 @@ func TestEnableInDB(t *testing.T) {
 	db.Exec(`INSERT INTO plugin_data (plugin_id, enabled) VALUES ('shiver', 0)`)
 	db.Close()
 	for i := 0; i < 2; i++ { // twice: idempotent
-		if err := EnableInDB(p); err != nil {
+		if err := EnableInDB(p, ID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -137,7 +137,7 @@ func TestEnableInDB(t *testing.T) {
 	db2, _ := sql.Open("sqlite", "file:"+old)
 	db2.Exec(`CREATE TABLE settings (name TEXT)`)
 	db2.Close()
-	if err := EnableInDB(old); err == nil {
+	if err := EnableInDB(old, ID); err == nil {
 		t.Fatal("missing columns not caught")
 	}
 }
