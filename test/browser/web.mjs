@@ -32,7 +32,7 @@ try {
   await page.click('[role=menuitem]:has-text("Restart")');
   await page.click('button:has-text("Restart chat-a")');
   await page.waitForSelector('text=Done.', { timeout: 120_000 });
-  const output = await page.locator('.font-mono').first().innerText();
+  const output = await page.locator('[role=dialog] .font-mono').first().innerText();
   check(output.includes('restart chat-a'), 'a restart ran and streamed its output');
   await page.click('button:has-text("Close")');
 
