@@ -15,6 +15,9 @@ if [ "$1" = configure ]; then
   if [ -d /run/systemd/system ]; then
     systemctl daemon-reload
     systemctl enable --now shiver-server-manager-health.timer shiver-server-manager-backup.timer
+    # An upgrade replaces the program; the web page keeps running the old
+    # one until it restarts. Only restarts it if it was already running.
+    systemctl try-restart shiver-server-manager-web.service || true
   fi
   echo "Run 'sudo shiver-server-manager' to finish setting up."
 fi
