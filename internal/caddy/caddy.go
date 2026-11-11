@@ -29,6 +29,7 @@ type Caddy struct {
 	GlobalFile string // /etc/caddy/<manager>/global.caddy
 	SitesDir   string // /etc/caddy/sites
 	DataDir    string // /var/lib/caddy/.local/share/caddy
+	DropIn     string // UnitDropIn; empty skips EnsureUnit (tests)
 }
 
 func New(r run.Runner, globalFile string) *Caddy {
@@ -38,6 +39,7 @@ func New(r run.Runner, globalFile string) *Caddy {
 		GlobalFile: globalFile,
 		SitesDir:   "/etc/caddy/sites",
 		DataDir:    "/var/lib/caddy/.local/share/caddy",
+		DropIn:     UnitDropIn,
 	}
 }
 
@@ -169,6 +171,58 @@ func (c *Caddy) Apply(ctx context.Context, files map[string][]byte, restart bool
 		return c.Restart(ctx)
 	}
 	return c.Reload(ctx)
+}
+
+// UnitDropIn overrides how the packaged service starts and reloads Caddy
+// where it differs from Caddy's own: openSUSE's starts with --resume (the
+// last configuration set through the API wins over the Caddyfile after a
+// restart) and reloads without --force (no certificate retry when nothing
+// changed).
+const UnitDropIn = "/etc/systemd/system/caddy.service.d/shiver-server-manager.conf"
+
+// DropInFor returns the drop-in for a unit as "systemctl cat caddy" shows
+// it, or nil when the unit already behaves like Caddy's own.
+func DropInFor(unit, marker string) []byte {
+	var start, reload string
+	for _, l := range strings.Split(unit, "\n") {
+		l = strings.TrimSpace(l)
+		if v, ok := strings.CutPrefix(l, "ExecStart="); ok && v != "" {
+			start = v
+		}
+		if v, ok := strings.CutPrefix(l, "ExecReload="); ok && v != "" {
+			reload = v
+		}
+	}
+	if start == "" || (!strings.Contains(start, "--resume") && strings.Contains(reload, "--force")) {
+		return nil
+	}
+	return []byte("# " + marker + "\n# Caddy starts from its Caddyfile, and a reload also retries certificates.\n[Service]\n" +
+		"ExecStart=\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\n" +
+		"ExecReload=\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n")
+}
+
+// EnsureUnit writes the drop-in when the packaged unit needs one. changed
+// means Caddy must restart to use it.
+func (c *Caddy) EnsureUnit(ctx context.Context, marker string) (changed bool, err error) {
+	if c.DropIn == "" || fsutil.Exists(c.DropIn) {
+		return false, nil
+	}
+	res, err := c.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"cat", "caddy"}})
+	if err != nil {
+		return false, err
+	}
+	d := DropInFor(string(res.Stdout), marker)
+	if d == nil {
+		return false, nil
+	}
+	if err := fsutil.MkdirAllMode(filepath.Dir(c.DropIn), 0o755); err != nil {
+		return false, err
+	}
+	if err := fsutil.WriteFileAtomic(c.DropIn, d, 0o644, nil); err != nil {
+		return false, err
+	}
+	_, err = c.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"daemon-reload"}})
+	return err == nil, err
 }
 
 // FilesMatch reports whether every file already holds the given content

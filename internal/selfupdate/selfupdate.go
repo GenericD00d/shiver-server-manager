@@ -1,9 +1,10 @@
 // Package selfupdate finds the manager's latest release on GitHub and
 // downloads its package, checked against the release's SHA256SUMS.
 //
-// Installing runs apt in a unit of its own (systemd-run): the package's
-// postinst restarts the web service, which would otherwise take an update
-// started from the web page down with it, halfway through dpkg.
+// Installing runs apt, dnf or zypper in a unit of its own (systemd-run):
+// the package's install script restarts the web service, which would
+// otherwise take an update started from the web page down with it, halfway
+// through the install.
 package selfupdate
 
 import (
@@ -160,8 +161,14 @@ func (c *Client) Latest(ctx context.Context, fresh bool) (Release, error) {
 	return r, nil
 }
 
-// PackageName is the release's .deb for a Go architecture.
-func PackageName(cmd, version, goarch string) string {
+// PackageName is the release's package for a Go architecture in a format
+// ("deb" or "rpm"), named as the release workflow names it (nfpm's
+// defaults).
+func PackageName(cmd, version, goarch, format string) string {
+	if format == "rpm" {
+		arch := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[goarch]
+		return fmt.Sprintf("%s-%s-1.%s.rpm", cmd, version, arch)
+	}
 	return fmt.Sprintf("%s_%s_%s.deb", cmd, version, goarch)
 }
 
@@ -249,12 +256,22 @@ func sumFor(sums []byte, name string) (string, error) {
 }
 
 // InstallArgs is the systemd-run command that installs a downloaded
-// package in its own unit. wait keeps the terminal attached to it.
-func InstallArgs(unit, pkg string, wait bool) []string {
+// package in its own unit with a package manager ("apt", "dnf" or
+// "zypper"). wait keeps the terminal attached to it. Changed config files
+// are kept (dpkg's confold; rpm's noreplace files do that already).
+func InstallArgs(unit, pkg, manager string, wait bool) []string {
 	args := []string{"systemd-run", "--unit=" + unit, "--collect", "--quiet",
 		"--setenv=DEBIAN_FRONTEND=noninteractive"}
 	if wait {
 		args = append(args, "--wait", "--pipe")
+	}
+	switch manager {
+	case "dnf":
+		return append(args, "/usr/bin/dnf", "install", "-y", pkg)
+	case "zypper":
+		// The release's packages aren't signed; SHA256SUMS over HTTPS
+		// vouches for them instead.
+		return append(args, "/usr/bin/zypper", "--non-interactive", "install", "--allow-unsigned-rpm", pkg)
 	}
 	return append(args, "/usr/bin/apt-get", "install", "-y",
 		"-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", pkg)

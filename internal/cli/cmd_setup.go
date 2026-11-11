@@ -14,12 +14,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
+	"github.com/GenericD00d/shiver-server-manager/internal/distro"
 	"github.com/GenericD00d/shiver-server-manager/internal/firewall"
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
 	"github.com/GenericD00d/shiver-server-manager/internal/netinfo"
 	"github.com/GenericD00d/shiver-server-manager/internal/ops"
 	"github.com/GenericD00d/shiver-server-manager/internal/osuser"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
+	"github.com/GenericD00d/shiver-server-manager/internal/run"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 	"github.com/GenericD00d/shiver-server-manager/internal/vault"
 )
@@ -100,11 +102,11 @@ func (a *App) warn(format string, args ...any) { a.say("! "+format, args...) }
 
 func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []string, f setupFlags) error {
 	// The system.
-	osInfo, err := ops.ReadOS("/etc/os-release")
+	osInfo, err := ops.OS()
 	if err != nil {
 		return err
 	}
-	if err := osInfo.Supported(); err != nil {
+	if err := osInfo.Check(); err != nil {
 		return err
 	}
 	a.ok("%s", osInfo.PrettyName)
@@ -166,15 +168,15 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 		a.warn("No admins yet. Add one with: %s admins add <user>", paths.Cmd)
 	}
 
-	if err := a.setupCaddy(ctx, s); err != nil {
+	if err := a.setupCaddy(ctx, s, osInfo); err != nil {
 		return err
 	}
-	if err := a.setupFirewall(ctx, s, f.noFirewall); err != nil {
+	if err := a.setupFirewall(ctx, s, osInfo, f.noFirewall); err != nil {
 		return err
 	}
-	if _, err := os.Stat("/usr/sbin/cryptsetup"); err != nil {
+	if !haveProgram("cryptsetup") {
 		a.say("  … installing cryptsetup, for encrypted data folders")
-		if err := s.AptInstall(ctx, "cryptsetup"); err != nil {
+		if err := s.Installer(osInfo).Install(ctx, "cryptsetup"); err != nil {
 			return err
 		}
 	}
@@ -232,7 +234,7 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 		cancel()
 	}
 
-	for name, err := range ops.Outbound(ctx) {
+	for name, err := range ops.Outbound(ctx, osInfo) {
 		if err != nil {
 			a.warn("Can't reach %s: %v", name, err)
 		}
@@ -246,14 +248,16 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 		}
 	}
 
-	if ops.AutoUpdatesOn() {
-		if err := s.AddCaddyToAutoUpdates(ctx); err != nil {
-			a.warn("Couldn't add Caddy to automatic updates: %v", err)
+	if osInfo.Family() == distro.Debian {
+		if ops.AutoUpdatesOn() {
+			if err := s.AddCaddyToAutoUpdates(ctx); err != nil {
+				a.warn("Couldn't add Caddy to automatic updates: %v", err)
+			} else {
+				a.ok("Automatic security updates include Caddy")
+			}
 		} else {
-			a.ok("Automatic security updates include Caddy")
+			a.warn("Automatic security updates (unattended-upgrades) are off. Turn them on with: dpkg-reconfigure -plow unattended-upgrades")
 		}
-	} else {
-		a.warn("Automatic security updates (unattended-upgrades) are off. Turn them on with: dpkg-reconfigure -plow unattended-upgrades")
 	}
 
 	if isDesktop(ctx, a) {
@@ -317,7 +321,18 @@ func (a *App) runSetup(ctx context.Context, admins *osuser.Group, members []stri
 	return nil
 }
 
-func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
+// haveProgram reports whether a program is in one of the system folders.
+func haveProgram(name string) bool {
+	for _, d := range run.SearchDirs {
+		if fi, err := os.Stat(filepath.Join(d, name)); err == nil && !fi.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) setupCaddy(ctx context.Context, s *ops.Sys, osInfo distro.OS) error {
+	inst := s.Installer(osInfo)
 	holders, err := ops.PortHolders(ctx, a.runner)
 	if err != nil {
 		return err
@@ -330,7 +345,7 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 		return err
 	}
 	if !installed {
-		ok, err := a.term.confirm("Caddy isn't installed. Install it from Caddy's own apt repository?")
+		ok, err := a.term.confirm(fmt.Sprintf("Caddy isn't installed. Install it from %s?", inst.CaddySource()))
 		if err != nil {
 			return err
 		}
@@ -338,7 +353,7 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 			return errors.New("the manager needs Caddy for HTTPS")
 		}
 		a.say("  … installing Caddy")
-		if err := s.InstallCaddy(ctx); err != nil {
+		if err := inst.InstallCaddy(ctx); err != nil {
 			return err
 		}
 		if v, _, err = s.Caddy.Version(ctx); err != nil {
@@ -347,8 +362,8 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 		a.log.Action("install caddy", nil)
 	}
 	if !caddy.VersionOK(v) {
-		ok, err := a.term.confirm(fmt.Sprintf("Caddy %d.%d.%d is installed, probably Ubuntu's own package, but the manager needs %d.%d or newer. Upgrade it from Caddy's own apt repository? (Any sites it already serves keep working.)",
-			v[0], v[1], v[2], caddy.MinVersion[0], caddy.MinVersion[1]))
+		ok, err := a.term.confirm(fmt.Sprintf("Caddy %d.%d.%d is installed, probably %s's own package, but the manager needs %d.%d or newer. Upgrade it from %s? (Any sites it already serves keep working.)",
+			v[0], v[1], v[2], osInfo.Name(), caddy.MinVersion[0], caddy.MinVersion[1], inst.CaddySource()))
 		if err != nil {
 			return err
 		}
@@ -356,7 +371,7 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 			return fmt.Errorf("Caddy %d.%d.%d is too old; the manager needs %d.%d or newer", v[0], v[1], v[2], caddy.MinVersion[0], caddy.MinVersion[1])
 		}
 		a.say("  … upgrading Caddy")
-		if err := s.InstallCaddy(ctx); err != nil {
+		if err := inst.InstallCaddy(ctx); err != nil {
 			return err
 		}
 		if v, _, err = s.Caddy.Version(ctx); err != nil {
@@ -364,7 +379,7 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 		}
 		a.log.Action("upgrade caddy", nil)
 		if !caddy.VersionOK(v) {
-			return fmt.Errorf("Caddy is still %d.%d.%d after the upgrade; check 'apt-cache policy caddy' for a package pinned to Ubuntu's version", v[0], v[1], v[2])
+			return fmt.Errorf("Caddy is still %d.%d.%d after the upgrade; check whether the caddy package is pinned or held at %s's version", v[0], v[1], v[2], osInfo.Name())
 		}
 	}
 	a.ok("Caddy %d.%d.%d", v[0], v[1], v[2])
@@ -390,29 +405,35 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys) error {
 	return nil
 }
 
-func (a *App) setupFirewall(ctx context.Context, s *ops.Sys, noFirewall bool) error {
+func (a *App) setupFirewall(ctx context.Context, s *ops.Sys, osInfo distro.OS, noFirewall bool) error {
 	name, err := firewall.Detect(ctx, a.runner)
 	if err != nil {
 		return err
 	}
 	if name == "" && !noFirewall {
-		ok, err := a.term.confirm("No firewall is on. Switch on ufw (SSH stays open)?")
+		fw := osInfo.DefaultFirewall()
+		ok, err := a.term.confirm(fmt.Sprintf("No firewall is on. Switch on %s (SSH stays open)?", fw))
 		if err != nil {
 			return err
 		}
 		if ok {
-			if _, err := os.Stat("/usr/sbin/ufw"); err != nil {
-				if err := s.AptInstall(ctx, "ufw"); err != nil {
+			program := map[string]string{"ufw": "ufw", "firewalld": "firewall-cmd"}[fw]
+			if !haveProgram(program) {
+				if err := s.Installer(osInfo).Install(ctx, fw); err != nil {
 					return err
 				}
 			}
 			ports := firewall.SSHPorts(ctx, a.runner)
-			if err := (firewall.UFW{R: a.runner}).Enable(ctx, ports); err != nil {
+			var enable func(context.Context, []int) error = firewall.UFW{R: a.runner}.Enable
+			if fw == "firewalld" {
+				enable = firewall.Firewalld{R: a.runner}.Enable
+			}
+			if err := enable(ctx, ports); err != nil {
 				return err
 			}
-			a.log.Action("enable ufw", nil)
-			name = "ufw"
-			a.ok("ufw switched on, with SSH (port %v) open", ports)
+			a.log.Action("enable "+fw, nil)
+			name = fw
+			a.ok("%s switched on, with SSH (port %v) open", fw, ports)
 		}
 	}
 	if name == "" {

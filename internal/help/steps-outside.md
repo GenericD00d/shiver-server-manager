@@ -4,14 +4,27 @@ The manager can't do these itself. Each one is shown where it comes up, and all 
 
 ## Install the manager
 
-Download the .deb for your processor (amd64 or arm64), then:
+Download the package for your system and processor from the releases page, then install it and start the manager:
 
-    sudo apt install ./shiver-server-manager_<version>_<arch>.deb
+- Ubuntu, Linux Mint, Debian: the `.deb` (`amd64` or `arm64`)
+
+      sudo apt install ./shiver-server-manager_<version>_<arch>.deb
+
+- Fedora, RHEL, AlmaLinux, Rocky Linux: the `.rpm` (`x86_64` or `aarch64`)
+
+      sudo dnf install ./shiver-server-manager-<version>-1.<arch>.rpm
+
+- openSUSE: the same `.rpm`
+
+      sudo zypper install --allow-unsigned-rpm ./shiver-server-manager-<version>-1.<arch>.rpm
+
+Then:
+
     sudo shiver-server-manager
 
 ## Add an admin
 
-Create the OS account if it doesn't exist yet (`sudo adduser <name>`), then add it with Security > Admins (or `shiver-server-manager admins add <name>`). Admins start the manager with `sudo shiver-server-manager`.
+Create the OS account if it doesn't exist yet (`sudo adduser <name>` on Ubuntu and Debian, `sudo useradd -m <name> && sudo passwd <name>` elsewhere), then add it with Security > Admins (or `shiver-server-manager admins add <name>`). Admins start the manager with `sudo shiver-server-manager`.
 
 ## Point a domain at the server
 
@@ -71,6 +84,6 @@ Download the Android APK or the Windows installer from Shiver's releases page: h
 
 ## Update the manager
 
-    sudo apt update && sudo apt install ./shiver-server-manager_<new version>_<arch>.deb
+Use System > Updates (or `sudo shiver-server-manager self-update`). By hand, install the new release's package the same way as the first one.
 
 Servers keep running while the manager updates.

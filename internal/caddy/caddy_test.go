@@ -134,3 +134,15 @@ func TestLastCertError(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestDropInFor(t *testing.T) {
+	caddys := "[Service]\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n"
+	if d := DropInFor(caddys, "m"); d != nil {
+		t.Fatalf("Caddy's own unit got a drop-in:\n%s", d)
+	}
+	suse := "[Service]\nExecStart=/usr/bin/caddy run --resume --environ --config /etc/caddy/Caddyfile\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile\n"
+	d := string(DropInFor(suse, "m"))
+	if !strings.Contains(d, "ExecStart=\nExecStart=/usr/bin/caddy run --environ") || strings.Contains(d, "--resume") || !strings.Contains(d, "--force") {
+		t.Fatalf("openSUSE's unit:\n%s", d)
+	}
+}

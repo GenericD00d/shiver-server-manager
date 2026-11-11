@@ -102,8 +102,7 @@ func TestE2ERepair(t *testing.T) {
 		if out := e.stdout(t, "", "instance", "list"); strings.Contains(out, id) {
 			t.Fatalf("still listed:\n%s", out)
 		}
-		ufw, _ := exec.Command("ufw", "status").CombinedOutput()
-		if strings.Contains(string(ufw), "sharkord:"+id) {
+		if _, fw := firewallText(t); strings.Contains(fw, "sharkord:"+id) || strings.Contains(fw, "sharkord-"+id) {
 			t.Fatal("firewall rules left")
 		}
 	})

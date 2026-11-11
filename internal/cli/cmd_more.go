@@ -86,7 +86,8 @@ func (a *App) removeEverythingCmd() *cobra.Command {
 					if err := s.RemoveEverything(cmd.Context()); err != nil {
 						return err
 					}
-					a.say("✓ Every server is deleted. Remove the package with: sudo apt remove %s", paths.Cmd)
+					osInfo, _ := ops.OS()
+					a.say("✓ Every server is deleted. Remove the package with: %s", osInfo.UninstallCommand(paths.Cmd))
 					a.say("Kept: the vault and records in %s, backups in %s.", paths.StateDir, s.St.Settings.BackupLocation)
 					return nil
 				})
