@@ -5,29 +5,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ["debian:12", "debian:13", "fedora:43", "fedora:44", "almalinux:9", "almalinux:10", "rockylinux/rockylinux:10", "opensuse/leap:16.0", "opensuse/tumbleweed", "archlinux:latest"]
+        image: ["fedora:44", "almalinux:9", "almalinux:10", "opensuse/leap:16.0", "opensuse/tumbleweed", "archlinux:latest"]
     runs-on: ubuntu-24.04
     container: ${{ matrix.image }}
     steps:
       - name: probe
+        shell: bash
         run: |
-          cat /etc/os-release
-          ldd --version | head -1 || true
-          if command -v apt-get; then apt-get update -qq; apt-cache policy caddy; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq caddy || true; fi
+          set +e
+          . /etc/os-release
           if command -v dnf; then
-            dnf -y -q install caddy || { dnf -y -q install epel-release && dnf -y -q install caddy; } || true
-            . /etc/os-release
             case "$ID" in fedora) r=fedora-$VERSION_ID;; *) r=epel-${VERSION_ID%%.*};; esac
-            curl -fsS https://copr.fedorainfracloud.org/coprs/g/caddy/caddy/repo/$r/group_caddy-caddy-$r.repo || echo "no copr for $r"
-            ls /etc/pam.d; cat /etc/pam.d/system-auth 2>/dev/null | head -5; cat /etc/pam.d/password-auth 2>/dev/null | head -3
-            rpm -q --whatprovides iproute2 iproute || true
+            curl -fsSo /etc/yum.repos.d/caddy.repo https://copr.fedorainfracloud.org/coprs/g/caddy/caddy/repo/$r/group_caddy-caddy-$r.repo
+            cat /etc/yum.repos.d/caddy.repo
+            dnf -y install caddy 2>&1 | tail -5
+            rpm -qi caddy | head -12
           fi
-          if command -v zypper; then zypper -n -q install caddy || true; ls /etc/pam.d; rpm -q --whatprovides iproute2 iproute || true; fi
-          if command -v pacman; then pacman -Sy --noconfirm -q caddy || true; ls /etc/pam.d; grep -n includedir /etc/sudoers 2>/dev/null; fi
-          echo ==== caddy; caddy version || true
-          systemctl cat caddy 2>/dev/null || cat /usr/lib/systemd/system/caddy.service /lib/systemd/system/caddy.service 2>/dev/null
-          echo ==== Caddyfile; cat /etc/caddy/Caddyfile 2>/dev/null; ls -la /etc/caddy 2>/dev/null
+          if command -v zypper; then
+            curl -fsS https://dl.cloudsmith.io/public/caddy/stable/rpm/any-distro/any-version/repodata/repomd.xml | head -3 || echo "no cloudsmith rpm"
+            zypper -n -q install caddy >/dev/null; rpm -qi caddy | head -12
+            for p in server:http devel:languages:go; do v=$(echo $VERSION_ID | sed 's/^16.0$/16.0/'); curl -fsS "https://download.opensuse.org/repositories/${p/:/:\/}/openSUSE_Leap_${VERSION_ID}/repodata/repomd.xml" >/dev/null && echo "obs $p leap ok"; done
+            curl -fsSL "https://download.opensuse.org/repositories/server:/http/" | grep -o 'href="[^"]*"' | head -30
+          fi
+          if command -v pacman; then pacman -Sy --noconfirm -q caddy sudo >/dev/null 2>&1; pacman -Qi caddy | head -3; grep -n includedir /etc/sudoers; cat /etc/pam.d/system-auth; fi
+          echo ==== caddy; caddy version
+          echo ==== unit; cat /usr/lib/systemd/system/caddy.service
+          echo ==== Caddyfile; cat /etc/caddy/Caddyfile; ls -laR /etc/caddy
           getent passwd caddy
-          echo ==== sudoers; grep -n includedir /etc/sudoers 2>/dev/null || true
-          ls /etc/sudoers.d 2>/dev/null; ls /etc/pam.d | head -50
-          command -v ufw firewall-cmd ss runuser gpasswd useradd || true
+          echo ==== tmpfiles; cat /usr/lib/tmpfiles.d/caddy*.conf 2>/dev/null
+          echo ==== pam; for f in system-auth common-auth common-account password-auth; do [ -f /etc/pam.d/$f ] && { echo "-- $f"; grep -v '^#' /etc/pam.d/$f; }; done
