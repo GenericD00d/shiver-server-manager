@@ -1,0 +1,33 @@
+name: probe
+on: push
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "debian:13", "fedora:43", "fedora:44", "almalinux:9", "almalinux:10", "rockylinux/rockylinux:10", "opensuse/leap:16.0", "opensuse/tumbleweed", "archlinux:latest"]
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    steps:
+      - name: probe
+        run: |
+          cat /etc/os-release
+          ldd --version | head -1 || true
+          if command -v apt-get; then apt-get update -qq; apt-cache policy caddy; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq caddy || true; fi
+          if command -v dnf; then
+            dnf -y -q install caddy || { dnf -y -q install epel-release && dnf -y -q install caddy; } || true
+            . /etc/os-release
+            case "$ID" in fedora) r=fedora-$VERSION_ID;; *) r=epel-${VERSION_ID%%.*};; esac
+            curl -fsS https://copr.fedorainfracloud.org/coprs/g/caddy/caddy/repo/$r/group_caddy-caddy-$r.repo || echo "no copr for $r"
+            ls /etc/pam.d; cat /etc/pam.d/system-auth 2>/dev/null | head -5; cat /etc/pam.d/password-auth 2>/dev/null | head -3
+            rpm -q --whatprovides iproute2 iproute || true
+          fi
+          if command -v zypper; then zypper -n -q install caddy || true; ls /etc/pam.d; rpm -q --whatprovides iproute2 iproute || true; fi
+          if command -v pacman; then pacman -Sy --noconfirm -q caddy || true; ls /etc/pam.d; grep -n includedir /etc/sudoers 2>/dev/null; fi
+          echo ==== caddy; caddy version || true
+          systemctl cat caddy 2>/dev/null || cat /usr/lib/systemd/system/caddy.service /lib/systemd/system/caddy.service 2>/dev/null
+          echo ==== Caddyfile; cat /etc/caddy/Caddyfile 2>/dev/null; ls -la /etc/caddy 2>/dev/null
+          getent passwd caddy
+          echo ==== sudoers; grep -n includedir /etc/sudoers 2>/dev/null || true
+          ls /etc/sudoers.d 2>/dev/null; ls /etc/pam.d | head -50
+          command -v ufw firewall-cmd ss runuser gpasswd useradd || true
