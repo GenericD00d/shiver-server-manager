@@ -52,8 +52,10 @@ func (c *Caddy) certDir(issuer, d string) string {
 	return filepath.Join(c.DataDir, "certificates", issuer, d)
 }
 
-// MinVersion is the oldest Caddy with the settings the manager uses.
-var MinVersion = [3]int{2, 11, 0}
+// MinVersion is the oldest Caddy the manager is tested with: 2.10.0 is
+// openSUSE Leap 16's (CI's end-to-end tests run on it); elsewhere setup
+// installs the latest from the Caddy project.
+var MinVersion = [3]int{2, 10, 0}
 
 // Caddy's own builds print "v2.11.9 h1:...", Ubuntu's package just "2.6.2".
 var versionRE = regexp.MustCompile(`(?m)^\s*v?(\d+)\.(\d+)\.(\d+)`)

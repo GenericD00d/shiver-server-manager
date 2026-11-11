@@ -199,9 +199,12 @@ func (a *App) instanceLogs() *cobra.Command {
 				return j.Run()
 			}
 			return a.withOps(state.Shared, func(s *ops.Sys) error {
+				inst, err := s.Instance(id)
+				if err != nil {
+					return err
+				}
 				out, err := s.Logs(cmd.Context(), id, lines)
 				fmt.Fprint(a.Out, out)
-				inst, _ := s.Instance(id)
 				if b, rerr := os.ReadFile(inst.DataPath + "/logs/error.log"); rerr == nil && len(b) > 0 {
 					fmt.Fprintf(a.Out, "\n--- %s/logs/error.log (last lines) ---\n%s", inst.DataPath, lastN(string(b), lines))
 				}

@@ -66,6 +66,6 @@ ssh "${ssh_opts[@]}" root@127.0.0.1 'cd /root/ci && sh guest.sh'
 status=$?
 set -e
 if [ $status != 0 ]; then
-  ssh "${ssh_opts[@]}" root@127.0.0.1 'tail -n 100 /var/log/shiver-server-manager.log; journalctl -u "sharkord@*" -u caddy --no-pager -n 150; (ausearch -m avc -ts boot 2>/dev/null || journalctl -k --no-pager | grep -i avc) | tail -40' || true
+  ssh "${ssh_opts[@]}" root@127.0.0.1 'tail -n 100 /var/log/shiver-server-manager.log; journalctl -u "sharkord@*" -u caddy --no-pager -n 150; (ausearch -m avc -ts boot 2>/dev/null || grep -h avc /var/log/audit/audit.log 2>/dev/null || journalctl --no-pager -b | grep -i "avc:") | tail -40; ls -laZ /var/lib/caddy /usr/bin/caddy 2>/dev/null; ps -eZ 2>/dev/null | grep -i caddy' || true
 fi
 exit $status
