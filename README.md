@@ -6,10 +6,13 @@ Sets up, runs, backs up, imports, exports and deletes several [Sharkord](https:/
 
 Not an official Sharkord project.
 
-Supported: Ubuntu 24.04 and 26.04, Linux Mint 22, on amd64 and arm64.
+Supported, on amd64 and arm64: Ubuntu 24.04 and 26.04 (and Linux Mint 22), Debian 12 and 13, Fedora 43 and newer, RHEL, AlmaLinux and Rocky Linux 9 and 10, and openSUSE Tumbleweed and Leap 16.
 
-    sudo apt install ./shiver-server-manager_<version>_<arch>.deb
+    sudo apt install ./shiver-server-manager_<version>_<arch>.deb       # Ubuntu, Mint, Debian
+    sudo dnf install ./shiver-server-manager-<version>-1.<arch>.rpm     # Fedora, RHEL, AlmaLinux, Rocky
     sudo shiver-server-manager
+
+(openSUSE: `sudo zypper install --allow-unsigned-rpm ./shiver-server-manager-<version>-1.<arch>.rpm`.)
 
 There's also a web page for servers without a desktop (`web enable`, then an SSH tunnel to port 8443, or an admin domain through Caddy).
 
@@ -35,15 +38,17 @@ The web page's front end (React, with Sharkord's own shadcn/ui components and th
 
 To look at it during development with sample data: `SSM_WEB_DEMO=1 go test ./internal/web -run TestDemo -timeout 0`, then http://127.0.0.1:8443 (admin / demo).
 
-PAM needs cgo, so build on Linux (Ubuntu 24.04, the oldest supported base) with `libpam0g-dev`:
+PAM needs cgo, so build on Linux. Releases build inside AlmaLinux 8, whose glibc (2.28) is older than every supported system's, so one binary runs on all of them (see `packaging/build.sh`):
 
-    CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" ./cmd/shiver-server-manager
-    go test ./...
+    docker run --rm -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8 sh /src/packaging/build.sh $VERSION
     ARCH=amd64 VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+    ARCH=amd64 VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
+
+For development, `CGO_ENABLED=1 go build ./cmd/shiver-server-manager` and `go test ./...` with `libpam0g-dev` (or `pam-devel`) work on any of them.
 
 Everything else builds and tests on any OS; Linux-only parts have stand-ins.
 
-CI runs the unit tests, then installs the .deb on a fresh Ubuntu 24.04 runner (amd64 and arm64) and drives the real binary through every milestone as root: PAM logins, real Sharkord servers, Caddy with Pebble (Let's Encrypt's test server), ufw, LUKS, a second disk, backups and imports, the real Shiver plugin, the health check, two browsers on a voice call, and the web page with a real PAM login. Pushing a `v*` tag publishes the .debs.
+CI runs the unit tests, then installs the package on every supported system in a container (install scripts, sudoers and PAM files, the binary runs), runs the end-to-end tests inside Debian, Fedora, AlmaLinux 9 and 10, and openSUSE Tumbleweed and Leap cloud images under KVM, and installs the .deb on a fresh Ubuntu 24.04 runner (amd64 and arm64) to drive the real binary through every milestone as root: PAM logins, real Sharkord servers, Caddy with Pebble (Let's Encrypt's test server), ufw, LUKS, a second disk, backups and imports, the real Shiver plugin, the health check, two browsers on a voice call, and the web page with a real PAM login. Pushing a `v*` tag publishes the .debs.
 
 ## Licence
 

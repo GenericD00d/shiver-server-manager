@@ -8,17 +8,24 @@ It isn't an official Sharkord project.
 
 ## Requirements
 
-- Ubuntu 24.04 or 26.04, or Linux Mint 22, on amd64 or arm64.
+- One of these, on amd64 (x86_64) or arm64 (aarch64), with systemd:
+  - Ubuntu 24.04 or 26.04, or a system built on them such as Linux Mint 22
+  - Debian 12 or 13
+  - Fedora 43 or newer
+  - RHEL, AlmaLinux or Rocky Linux 9 or 10
+  - openSUSE Tumbleweed or Leap 16
 - A public IPv4 address that reaches the machine. Sharkord's voice server only listens on IPv4.
 - Ports 80 and 443 free (no other web server), plus the voice ports (40000-40999 by default).
 - For Let's Encrypt certificates, a domain name per server pointing at the machine.
 
 ## Installing
 
-Download the .deb for your processor from the releases page, check it against `SHA256SUMS`, and install it:
+Download the package for your system and processor from the releases page (the `.deb` for Ubuntu, Mint and Debian, the `.rpm` for Fedora, RHEL and its rebuilds, and openSUSE), check it against `SHA256SUMS`, and install it:
 
     sha256sum -c --ignore-missing SHA256SUMS
-    sudo apt install ./shiver-server-manager_<version>_<arch>.deb
+    sudo apt install ./shiver-server-manager_<version>_<arch>.deb                          # Ubuntu, Mint, Debian
+    sudo dnf install ./shiver-server-manager-<version>-1.<arch>.rpm                        # Fedora, RHEL, AlmaLinux, Rocky
+    sudo zypper install --allow-unsigned-rpm ./shiver-server-manager-<version>-1.<arch>.rpm # openSUSE
     sudo shiver-server-manager
 
 The package creates the `shiver-admins` group, the manager's folders and two timers (health check every 5 minutes, and backups, which run each server on its own schedule), and a sudoers rule so admins can start the manager without a sudo password. The manager's own login is the password check.
@@ -29,13 +36,13 @@ The first run asks to run setup (System > First-time setup, or `setup`). It's sa
 
 1. Checks the OS and that ports 80 and 443 are free.
 2. Creates its folders and records, the `shiver-admins` group, and makes you the first admin.
-3. Installs Caddy from Caddy's own apt repository (Ubuntu's is too old) and writes its configuration. If Caddy already serves other sites, it only adds two `import` lines to your Caddyfile, after showing you the change.
+3. Installs Caddy and writes its configuration. Ubuntu's, Debian's, Fedora's and RHEL's own Caddy is too old, so there it comes from the Caddy project's own repository (apt on Ubuntu and Debian, COPR on Fedora and RHEL); openSUSE's is used as it is. On openSUSE, a drop-in for `caddy.service` makes Caddy start from its Caddyfile (openSUSE's unit starts with `--resume`). If Caddy already serves other sites, it only adds two `import` lines to your Caddyfile, after showing you the change.
 4. Moves Caddy's admin interface to a Unix socket only Caddy and root can use.
-5. Finds the firewall (ufw or firewalld). With none, it offers to switch on ufw, allowing SSH first. Opens TCP 80, 443 and UDP 443 for Caddy.
+5. Finds the firewall (ufw or firewalld). With none, it offers to switch one on, allowing SSH first: ufw on Ubuntu and Debian, firewalld elsewhere. Opens TCP 80, 443 and UDP 443 for Caddy.
 6. Installs `cryptsetup` for encrypted data folders.
 7. Checks the clock is synchronised, finds the public IPv4 address, tells a VPS from a home server behind a router, and spots carrier-grade NAT.
 8. Checks it can reach GitHub, Let's Encrypt and Caddy's repository, and that there's disk space.
-9. Adds Caddy to automatic security updates.
+9. On Ubuntu and Debian, adds Caddy to automatic security updates (unattended-upgrades only covers the distribution's own archive). dnf-automatic and openSUSE's updates already cover every repository.
 10. On a desktop, offers to keep the computer awake.
 11. Sets the vault passphrase and shows the **recovery key once**. Write it down or keep it in a password manager, away from the server: it's the only way back into the vault and every backup if the passphrase is lost.
 
@@ -159,10 +166,12 @@ The health check runs every 5 minutes and from System > Health check: servers ru
 | `/usr/lib/systemd/system/sharkord@.service` | The shared unit; per-server drop-ins in `/etc/systemd/system/sharkord@<id>.service.d/` |
 | `/etc/caddy/Caddyfile`, `/etc/caddy/shiver-server-manager/`, `/etc/caddy/sites/<id>.caddy` | Caddy's configuration |
 | `/etc/apt/sources.list.d/caddy-stable.list`, `/etc/apt/apt.conf.d/52shiver-server-manager` | Caddy's repository and its automatic updates |
+| `/etc/yum.repos.d/_copr:copr.fedorainfracloud.org:group_caddy:caddy.repo` | Caddy's repository on Fedora and RHEL |
+| `/etc/systemd/system/caddy.service.d/shiver-server-manager.conf` | openSUSE only: Caddy starts from its Caddyfile |
 | `/etc/fstab` | Drives mounted with Storage > Add a drive (backed up first) |
 | ufw rules labelled `sharkord:<id>`, or firewalld services `sharkord-<id>` | Firewall |
 | `sharkord-<id>` system users | One per server |
 
 ## Uninstalling
 
-Removing the package never stops or deletes a server, but it does remove the shared unit (`sharkord@.service`), so servers keep running only until the next reboot. To remove everything, use System > Remove everything first (it deletes every server), then `sudo apt remove shiver-server-manager`. The vault, records and backups stay until you delete them; reinstalling the package brings the servers back as they were.
+Removing the package never stops or deletes a server, but it does remove the shared unit (`sharkord@.service`), so servers keep running only until the next reboot. To remove everything, use System > Remove everything first (it deletes every server), then remove the package (`sudo apt remove shiver-server-manager`, `sudo dnf remove shiver-server-manager` or `sudo zypper remove shiver-server-manager`). The vault, records and backups stay until you delete them; reinstalling the package brings the servers back as they were.
