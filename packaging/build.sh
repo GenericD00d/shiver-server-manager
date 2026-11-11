@@ -8,6 +8,8 @@
 set -eu
 version=$1
 dnf -y -q install gcc pam-devel >/dev/null
+# glibc 2.28 only defines RTLD_NEXT (used by the PAM library) with _GNU_SOURCE.
+export CGO_CFLAGS="-O2 -g -D_GNU_SOURCE"
 export PATH=/goroot/bin:$PATH GOROOT=/goroot GOMODCACHE=/gomod GOCACHE=/tmp/gocache GOTOOLCHAIN=local GOFLAGS=-buildvcs=false CGO_ENABLED=1
 cd /src
 go build -trimpath -ldflags "-s -w -X main.version=$version" -o shiver-server-manager ./cmd/shiver-server-manager
