@@ -29,7 +29,7 @@ test "$(stat -c %a /var/lib/shiver-server-manager/vault)" = 700
 test "$(stat -c %a /etc/sudoers.d/shiver-server-manager)" = 440
 # The PAM file only includes stacks this system has.
 cat /etc/pam.d/shiver-server-manager
-for f in $(sed -n 's/^[a-z-]*[[:space:]]*include[[:space:]]*\([^[:space:]]*\).*//p; s/^@include[[:space:]]*//p' /etc/pam.d/shiver-server-manager); do
+for f in $(sed -n 's/^[a-z-]*[[:space:]]*include[[:space:]]*\([^[:space:]]*\).*/\1/p; s/^@include[[:space:]]*//p' /etc/pam.d/shiver-server-manager); do
   test -f "/etc/pam.d/$f"
 done
 visudo -cf /etc/sudoers.d/shiver-server-manager
