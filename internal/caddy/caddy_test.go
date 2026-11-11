@@ -15,6 +15,9 @@ const marker = "Managed by shiver-server-manager"
 
 func TestGolden(t *testing.T) {
 	testutil.Golden(t, "global.caddy", RenderGlobal(marker, Global{AdminSocket: true}))
+	if g := string(RenderGlobal(marker, Global{AdminSocket: true, NoRenewalRatio: true})); strings.Contains(g, "renewal_window_ratio") || !strings.Contains(g, "intermediate_lifetime 730d\n\t}\n}") {
+		t.Fatalf("for Caddy 2.10:\n%s", g)
+	}
 	testutil.Golden(t, "global-test-ca.caddy", RenderGlobal(marker, Global{Email: "admin@example.com", ACMECA: "https://localhost:14000/dir", ACMECARoot: "/etc/caddy/pebble.pem"}))
 	testutil.Golden(t, "site-letsencrypt.caddy", RenderSite(marker, Site{ID: "chat-a", Domain: "chat-a.example.com", Port: 5000}))
 	testutil.Golden(t, "site-staging.caddy", RenderSite(marker, Site{ID: "chat-a", Domain: "chat-a.example.com", Port: 5000, TestMode: true}))

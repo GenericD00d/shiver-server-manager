@@ -30,7 +30,7 @@ esac
 echo "Image: $url"
 
 base=$work/$(basename "$url")
-[ -s "$base" ] || curl -fL --retry 3 -o "$base" "$url"
+[ -s "$base" ] || curl -fsSL --retry 5 --retry-all-errors -C - -o "$base" "$url" || curl -fsSL --retry 5 --retry-all-errors -C - -o "$base" "$url"
 qemu-img create -q -f qcow2 -b "$base" -F qcow2 "$work/disk.qcow2" 40G
 
 [ -f "$work/key" ] || ssh-keygen -q -t ed25519 -N "" -f "$work/key"

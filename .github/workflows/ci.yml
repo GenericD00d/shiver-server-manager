@@ -229,6 +229,13 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/vm/pebble/test"
           cp pebble "$GITHUB_WORKSPACE/vm/pebble/"
           cp -r test/config test/certs "$GITHUB_WORKSPACE/vm/pebble/test/"
+      # The cloud images change now and then; a weekly key keeps them fresh.
+      - id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/vm/*.qcow2
+          key: vm-image-${{ matrix.system }}-${{ steps.week.outputs.week }}
       - name: End-to-end tests in the VM
         run: bash test/vm/run.sh ${{ matrix.system }} vm
       - name: VM console

@@ -71,9 +71,10 @@ type CaddyPlan struct {
 // PlanCaddy works out the main Caddyfile and the global file. An unchanged
 // package default is replaced; an admin's own Caddyfile only gets the two
 // import lines.
-func (s *Sys) PlanCaddy() (CaddyPlan, error) {
+func (s *Sys) PlanCaddy(version [3]int) (CaddyPlan, error) {
 	c := s.Caddy
-	g := caddy.Global{AdminSocket: true, Email: s.St.Settings.Email, ACMECA: s.St.Settings.ACMECA, ACMECARoot: s.St.Settings.ACMECARoot}
+	g := caddy.Global{AdminSocket: true, Email: s.St.Settings.Email, ACMECA: s.St.Settings.ACMECA, ACMECARoot: s.St.Settings.ACMECARoot,
+		NoRenewalRatio: version[0] == 2 && version[1] < 11}
 	global := caddy.RenderGlobal(paths.Marker, g)
 	plan := CaddyPlan{Files: map[string][]byte{c.GlobalFile: global}}
 	old, _ := os.ReadFile(c.GlobalFile)

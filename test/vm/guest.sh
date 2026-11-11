@@ -25,6 +25,9 @@ visudo -cf /etc/sudoers.d/shiver-server-manager
 systemctl is-enabled shiver-server-manager-health.timer shiver-server-manager-backup.timer
 systemctl stop shiver-server-manager-health.timer shiver-server-manager-backup.timer
 getenforce 2>/dev/null || true
+# What the SELinux policy says about Caddy's paths, for diagnosing denials.
+grep -h caddy /etc/selinux/*/contexts/files/file_contexts* 2>/dev/null || true
+command -v matchpathcon >/dev/null && matchpathcon /run/caddy /run/caddy/admin.sock /var/lib/caddy/admin.sock /var/lib/caddy || true
 
 useradd -m -G shiver-admins ssm-admin
 useradd -m ssm-outsider

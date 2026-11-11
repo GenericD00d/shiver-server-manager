@@ -384,7 +384,7 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys, osInfo distro.OS) erro
 	}
 	a.ok("Caddy %d.%d.%d", v[0], v[1], v[2])
 
-	plan, err := s.PlanCaddy()
+	plan, err := s.PlanCaddy(v)
 	if err != nil {
 		return err
 	}
