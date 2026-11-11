@@ -4,7 +4,7 @@
 set -eux
 . /etc/os-release
 PW=Ci-Only-Passw0rd
-case " $ID $ID_LIKE " in
+case " $ID ${ID_LIKE:-} " in
   *" debian "*|*" ubuntu "*)
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -q
@@ -21,7 +21,7 @@ getent group shiver-admins
 test "$(stat -c %a /var/lib/shiver-server-manager)" = 711
 test "$(stat -c %a /etc/sudoers.d/shiver-server-manager)" = 440
 cat /etc/pam.d/shiver-server-manager
-visudo -c
+visudo -cf /etc/sudoers.d/shiver-server-manager
 systemctl is-enabled shiver-server-manager-health.timer shiver-server-manager-backup.timer
 systemctl stop shiver-server-manager-health.timer shiver-server-manager-backup.timer
 getenforce 2>/dev/null || true
@@ -36,6 +36,7 @@ if su ssm-outsider -s /bin/sh -c "sudo -n /usr/bin/shiver-server-manager version
 cd /root/ci/pebble
 PEBBLE_VA_ALWAYS_VALID=1 PEBBLE_WFE_NONCEREJECT=0 nohup ./pebble -config test/config/pebble-config.json > /root/ci/pebble.log 2>&1 &
 cd /root/ci
+chmod +x auth.test cli.test
 echo "127.0.0.1 chat-a.example.com chat-b.example.com chat-c.example.com" >> /etc/hosts
 for i in $(seq 30); do curl -sfk https://localhost:14000/dir >/dev/null && break; sleep 1; done
 
@@ -46,7 +47,7 @@ export SSM_PUBLIC_IP=$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) 
 ./cli.test -test.run TestE2E -test.v -test.timeout 40m
 
 # Removing the package leaves every server alone.
-case " $ID $ID_LIKE " in
+case " $ID ${ID_LIKE:-} " in
   *" debian "*|*" ubuntu "*) apt-get remove -y shiver-server-manager ;;
   *suse*) zypper -n remove shiver-server-manager ;;
   *) dnf -y remove shiver-server-manager ;;
