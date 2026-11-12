@@ -240,7 +240,7 @@ func newHarness(t *testing.T) *harness {
 			_, err := os.Lstat(p)
 			return 0, 0, err
 		},
-		Now:        func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
+		Now: func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
 		AsInstance: func(ctx context.Context, uid, gid int, stdin string, args ...string) error {
 			return runSelfAsInProcess(stdin, args...)
 		},
