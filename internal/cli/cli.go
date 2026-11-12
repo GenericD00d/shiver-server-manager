@@ -125,7 +125,7 @@ func exitCode(err error) int {
 
 // noRootNeeded lists commands that work as any user and on any OS. The
 // internal ones go further and refuse root: see refuseRoot.
-var noRootNeeded = map[string]bool{"version": true, "help": true, "completion": true, "internal-vacuum": true, "internal-enable-plugins": true}
+var noRootNeeded = map[string]bool{"version": true, "help": true, "completion": true, "internal-vacuum": true, "internal-enable-plugins": true, "internal-set-token": true}
 
 // isRoot is sysenv.IsRoot, swappable in tests.
 var isRoot = sysenv.IsRoot

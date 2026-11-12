@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 (2026-11-12)
+
+- The Shiver plugins page now shows one server at a time: pick it from the list at the top to see its plugins, with install and update buttons. A server with an update has an (i) in the list, and the "available" links on the Servers page open the page on that server.
+- Make a new secret (owner) token for a server, when the old one is lost or leaked: in the server's menu (…) on the web page, Owner tokens in the terminal menu, or `token new <id>`. It asks for your password again, backs the server up and restarts it. The old token stops working, and everyone on the server has to log in again, because Sharkord also signs logins with the token.
+
 ## 0.3.0 (2026-11-12)
 
 From users' feedback:

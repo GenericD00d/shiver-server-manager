@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
 
@@ -185,6 +186,49 @@ func IntegrityCheck(dataPath string) error {
 	}
 	if result != "ok" {
 		return fmt.Errorf("the database at %s failed its integrity check: %s", DBPath(dataPath), result)
+	}
+	return nil
+}
+
+// NewToken makes an owner token the way Sharkord does: a UUIDv7.
+func NewToken() (string, error) {
+	u, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	return u.String(), nil
+}
+
+var hashRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// SetTokenHash replaces settings.secret_token in a stopped server's
+// database. Sharkord also signs logins and file links with it, so everyone
+// has to log in again. The manager runs it as the instance's own user.
+func SetTokenHash(dbPath, hash string) error {
+	if !hashRE.MatchString(hash) {
+		return errors.New("not a SHA-256 hash")
+	}
+	if _, err := os.Lstat(dbPath); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM pragma_table_info('settings') WHERE name = 'secret_token'`).Scan(&n); err != nil {
+		return err
+	}
+	if n != 1 {
+		return errors.New("Sharkord's database has no settings.secret_token")
+	}
+	res, err := db.Exec(`UPDATE settings SET secret_token = ?`, hash)
+	if err != nil {
+		return err
+	}
+	if rows, _ := res.RowsAffected(); rows != 1 {
+		return fmt.Errorf("expected one settings row, found %d", rows)
 	}
 	return nil
 }

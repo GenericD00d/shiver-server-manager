@@ -241,7 +241,9 @@ func newHarness(t *testing.T) *harness {
 			return 0, 0, err
 		},
 		Now:        func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
-		AsInstance: func(ctx context.Context, uid, gid int, args ...string) error { return runSelfAsInProcess(args...) },
+		AsInstance: func(ctx context.Context, uid, gid int, stdin string, args ...string) error {
+			return runSelfAsInProcess(stdin, args...)
+		},
 	}
 	h.s.St.Settings.BackupLocation = filepath.Join(root, "backups")
 	return h
@@ -448,12 +450,14 @@ func TestSaveToken(t *testing.T) {
 }
 
 // runSelfAsInProcess does what the hidden internal commands do, in-process.
-func runSelfAsInProcess(args ...string) error {
+func runSelfAsInProcess(stdin string, args ...string) error {
 	switch args[0] {
 	case "internal-vacuum":
 		return backup.Vacuum(args[1], args[2])
 	case "internal-enable-plugins":
 		return plugins.EnableInDB(args[1], args[2])
+	case "internal-set-token":
+		return sharkord.SetTokenHash(args[1], stdin)
 	}
 	return fmt.Errorf("unknown internal command %s", args[0])
 }
@@ -463,5 +467,37 @@ func TestCreateNeedsSetupFirst(t *testing.T) {
 	h.s.Vault = &vault.Vault{Dir: filepath.Join(h.root, "no-vault")}
 	if err := h.s.Create(context.Background(), req("chat-a")); err == nil || !strings.Contains(err.Error(), "setup") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestNewToken(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.s.Create(ctx, req("chat-a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.s.NewToken(ctx, "chat-a"); err != nil {
+		t.Fatal(err)
+	}
+	k, err := h.s.Vault.Unlock("test vault passphrase")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := h.s.Token(k, "chat-a")
+	if err != nil || tok == testToken {
+		t.Fatalf("%q %v", tok, err)
+	}
+	data := h.s.St.Instances["chat-a"].DataPath
+	if err := sharkord.CheckToken(data, tok); err != nil {
+		t.Fatalf("the database doesn't have the new token: %v", err)
+	}
+	if err := sharkord.CheckToken(data, testToken); err == nil {
+		t.Fatal("the old token still works")
+	}
+	if !h.sys.active[systemd.Unit("chat-a")] {
+		t.Fatal("the server wasn't started again")
+	}
+	if backups, _ := filepath.Glob(filepath.Join(h.s.BackupDir("chat-a"), "*")); len(backups) == 0 {
+		t.Fatal("no backup first")
 	}
 }

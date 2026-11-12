@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/ops"
 	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
+	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 )
 
@@ -113,6 +116,25 @@ func (a *App) internalEnablePluginsCmd() *cobra.Command {
 				id = args[1]
 			}
 			return plugins.EnableInDB(args[0], id)
+		},
+	}
+}
+
+// internalSetTokenCmd is run by the manager itself, as an instance's user,
+// to put a new token's hash (read from stdin) in its stopped database. It
+// refuses root.
+func (a *App) internalSetTokenCmd() *cobra.Command {
+	return &cobra.Command{
+		Use: "internal-set-token <db>", Hidden: true, Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			if err := refuseRoot(); err != nil {
+				return err
+			}
+			b, err := io.ReadAll(io.LimitReader(a.In, 256))
+			if err != nil {
+				return err
+			}
+			return sharkord.SetTokenHash(args[0], strings.TrimSpace(string(b)))
 		},
 	}
 }

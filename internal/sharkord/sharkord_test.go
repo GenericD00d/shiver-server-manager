@@ -266,3 +266,30 @@ func TestParseEnvFile(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestSetTokenHash(t *testing.T) {
+	data := t.TempDir()
+	db, err := sql.Open("sqlite", "file:"+DBPath(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Exec(`CREATE TABLE settings (secret_token TEXT)`)
+	db.Exec(`INSERT INTO settings VALUES ('x')`)
+	db.Close()
+	tok, err := NewToken()
+	if err != nil || !tokenUUID.MatchString(tok) {
+		t.Fatalf("%q %v", tok, err)
+	}
+	if err := SetTokenHash(DBPath(data), "not a hash"); err == nil {
+		t.Fatal("accepted a bad hash")
+	}
+	if err := SetTokenHash(DBPath(data), HashToken(tok)); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckToken(data, tok); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetTokenHash(filepath.Join(data, "missing.sqlite"), HashToken(tok)); err == nil {
+		t.Fatal("made a database")
+	}
+}

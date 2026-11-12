@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -53,6 +54,32 @@ func TestE2EPlainInstance(t *testing.T) {
 	t.Run("token save checks the database", func(t *testing.T) {
 		e.asAdmin(t, ExitError, "019a0000-0000-7000-8000-000000000000\n", "token", "save", id)
 		e.asAdmin(t, 0, token+"\n", "token", "save", id)
+	})
+
+	t.Run("token new replaces the token", func(t *testing.T) {
+		e.asAdmin(t, 0, "", "token", "new", id, "--yes")
+		if err := sharkord.Healthz(context.Background(), 5000); err != nil {
+			t.Fatal(err)
+		}
+		newTok := strings.TrimSpace(e.stdout(t, e2ePass2+"\n", "token", "show", id))
+		if newTok == token {
+			t.Fatal("the token didn't change")
+		}
+		if err := sharkord.CheckToken(data, newTok); err != nil {
+			t.Fatalf("new token: %v", err)
+		}
+		if err := sharkord.CheckToken(data, token); err == nil {
+			t.Fatal("the old token still works")
+		}
+		// Written as the server's user: nothing root-owned beside the database.
+		uid, _, _ := osuser.IDs(osuser.InstanceUser(id))
+		files, _ := filepath.Glob(data + "/db.sqlite*")
+		for _, f := range files {
+			if ou, _, _ := fsutil.OwnerOf(f); ou != uid {
+				t.Errorf("%s is owned by %d", f, ou)
+			}
+		}
+		token = newTok
 	})
 
 	t.Run("list", func(t *testing.T) {

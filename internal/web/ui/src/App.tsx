@@ -27,7 +27,8 @@ const pages: { id: string; title: string; icon: ComponentType<{ className?: stri
 ];
 
 const currentPage = () => {
-  const id = window.location.hash.replace(/^#\/?/, '');
+  // #plugins/chat-a: the page, then something for it (here, the server).
+  const id = window.location.hash.replace(/^#\/?/, '').split('/')[0];
   return pages.some((p) => p.id === id) ? id : 'servers';
 };
 

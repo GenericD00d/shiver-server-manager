@@ -71,7 +71,31 @@ func (a *App) tokenCmd() *cobra.Command {
 			})
 		},
 	}
+	newTok := &cobra.Command{
+		Use: "new <id>", Short: "Make a new secret token, replacing the old one", Args: cobra.ExactArgs(1),
+		Long: "Makes a new secret token for a server and saves it in the vault. The old token stops working.\n\n" +
+			"Sharkord also signs logins with it, so everyone on the server has to log in again. The server is backed up and restarted.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
+				if _, err := s.Instance(args[0]); err != nil {
+					return err
+				}
+				a.say("A new secret token for %s: the old one stops working, and everyone on the server has to log in again. The server is backed up and restarted.", args[0])
+				ok, err := a.term.confirm("Make a new token?")
+				if err != nil || !ok {
+					return err
+				}
+				return a.logged("token new", args[0], func() error {
+					if err := s.NewToken(cmd.Context(), args[0]); err != nil {
+						return err
+					}
+					a.say("✓ %s has a new secret token, saved in the vault. See it with 'token show %s'.", args[0], args[0])
+					return nil
+				})
+			})
+		},
+	}
 	c := &cobra.Command{Use: "token", Short: "Secret tokens (owner tokens)", Args: cobra.NoArgs}
-	c.AddCommand(show, save)
+	c.AddCommand(show, save, newTok)
 	return c
 }

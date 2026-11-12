@@ -10,5 +10,5 @@ func (a *App) addCommands(root *cobra.Command) {
 
 	root.AddCommand(a.setupCmd(), instance, a.tokenCmd(), a.shiverCmd(), a.certCmd(), a.backupCmd(), a.restoreCmd(),
 		a.exportCmd(), a.importCmd(), a.storageCmd(), a.firewallCmd(), a.vaultCmd(), a.adminsCmd(), a.healthCmd(),
-		a.repairCmd(), a.webCmd(), a.removeEverythingCmd(), a.internalVacuumCmd(), a.internalEnablePluginsCmd(), a.selfUpdateCmd(), a.pluginCmd())
+		a.repairCmd(), a.webCmd(), a.removeEverythingCmd(), a.internalVacuumCmd(), a.internalEnablePluginsCmd(), a.internalSetTokenCmd(), a.selfUpdateCmd(), a.pluginCmd())
 }

@@ -201,7 +201,7 @@ func (s *Sys) swapPlugin(ctx context.Context, id string, inst *state.Instance, t
 	note := ""
 	if !hadOld {
 		if tested.DBSwitches {
-			if err := s.AsInstance(ctx, uid, gid, "internal-enable-plugins", sharkord.DBPath(inst.DataPath), m.ID); err != nil {
+			if err := s.AsInstance(ctx, uid, gid, "", "internal-enable-plugins", sharkord.DBPath(inst.DataPath), m.ID); err != nil {
 				note = fmt.Sprintf("couldn't switch plugins on (%v): in Sharkord, switch on plugins in the server settings, then %s under Settings -> Plugins", err, name)
 			}
 		} else {

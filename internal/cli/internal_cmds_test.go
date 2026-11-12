@@ -20,6 +20,7 @@ func TestInternalCommandsRefuseRoot(t *testing.T) {
 	for _, args := range [][]string{
 		{"internal-vacuum", filepath.Join(dir, "db.sqlite"), dst},
 		{"internal-enable-plugins", filepath.Join(dir, "db.sqlite")},
+		{"internal-set-token", filepath.Join(dir, "db.sqlite")},
 	} {
 		code, _, errOut := execute(args...)
 		if code != ExitUsage || !strings.Contains(errOut, "own user") {

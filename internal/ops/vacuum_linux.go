@@ -13,8 +13,9 @@ import (
 
 // runSelfAs runs one of this binary's hidden internal commands as an
 // instance's user, so SQLite never leaves root-owned files beside a
-// server's database.
-func runSelfAs(ctx context.Context, uid, gid int, args ...string) error {
+// server's database. stdin, if any, is its input: secrets go there, not
+// on the command line, where every user can read them.
+func runSelfAs(ctx context.Context, uid, gid int, stdin string, args ...string) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
@@ -22,6 +23,7 @@ func runSelfAs(ctx context.Context, uid, gid int, args ...string) error {
 	cmd := exec.CommandContext(ctx, self, args...)
 	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LANG=C.UTF-8"}
 	cmd.Dir = "/"
+	cmd.Stdin = strings.NewReader(stdin)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid), Groups: []uint32{}}}
 	out, err := cmd.CombinedOutput()
 	if err != nil {

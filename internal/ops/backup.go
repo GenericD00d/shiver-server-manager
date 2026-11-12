@@ -67,7 +67,7 @@ func (s *Sys) writeArchive(ctx context.Context, id, kind string, w io.Writer, r 
 		return err
 	}
 	dbCopy := filepath.Join(staging, "db.sqlite")
-	if err := s.AsInstance(ctx, uid, gid, "internal-vacuum", sharkord.DBPath(inst.DataPath), dbCopy); err != nil {
+	if err := s.AsInstance(ctx, uid, gid, "", "internal-vacuum", sharkord.DBPath(inst.DataPath), dbCopy); err != nil {
 		return err
 	}
 	m := backup.Manifest{Format: backup.FormatVersion, Kind: kind, CreatedAt: s.Now().UTC(),

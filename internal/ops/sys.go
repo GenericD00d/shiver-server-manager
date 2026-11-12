@@ -90,7 +90,7 @@ type Sys struct {
 	newKeys  map[string][]byte
 	// AsInstance runs one of the binary's hidden internal commands as an
 	// instance's user (copying or changing its database).
-	AsInstance     func(ctx context.Context, uid, gid int, args ...string) error
+	AsInstance     func(ctx context.Context, uid, gid int, stdin string, args ...string) error
 	ManagerVersion string
 	// ManagerLatest looks up the manager's latest release (nil skips it).
 	ManagerLatest func(ctx context.Context) (string, error)

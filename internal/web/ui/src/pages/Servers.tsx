@@ -303,6 +303,18 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
           description: 'Checked against the server’s database first.',
           fields: [{ name: 'token', label: 'Secret token', type: 'password', required: true }]
         })}
+        {item(
+          'New secret token…',
+          {
+            action: 'token.new',
+            title: `New secret token for ${s.id}`,
+            destructive: true,
+            confirmLabel: 'Make a new token',
+            description:
+              'Makes a new secret (owner) token and saves it in the vault; the old one stops working. Sharkord also signs logins with it, so everyone on the server has to log in again. The server is backed up and restarted. Afterwards, see the new token with Show secret token.'
+          },
+          true
+        )}
         <DropdownMenuSeparator />
         {item(
           'Delete…',
@@ -456,7 +468,7 @@ function ServerDetails({
                     <span>{p.name || p.id}</span>
                     <span className="text-muted-foreground">{p.version}</span>
                     {next && (
-                      <a href="#plugins" className="text-primary inline-flex items-center gap-1 underline-offset-4 hover:underline">
+                      <a href={`#plugins/${s.id}`} className="text-primary inline-flex items-center gap-1 underline-offset-4 hover:underline">
                         <Info className="size-4" /> {next} available
                       </a>
                     )}

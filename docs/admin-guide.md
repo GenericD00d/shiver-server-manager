@@ -50,7 +50,7 @@ Useful options: `--email` (Let's Encrypt expiry mails), `--public-ip` (set the a
 
 ## Logging in
 
-Admins are OS accounts in `shiver-admins`. Start the manager with `sudo shiver-server-manager`; it asks for your OS password through PAM, so it follows the server's own login rules, including two-factor modules. After 5 wrong passwords in 15 minutes, that username is paused for 5 minutes. The menu locks after 10 idle minutes. Showing a secret token, deleting a server, restoring a backup and removing everything ask for the password again.
+Admins are OS accounts in `shiver-admins`. Start the manager with `sudo shiver-server-manager`; it asks for your OS password through PAM, so it follows the server's own login rules, including two-factor modules. After 5 wrong passwords in 15 minutes, that username is paused for 5 minutes. The menu locks after 10 idle minutes. Showing a secret token, making a new one, deleting a server, restoring a backup and removing everything ask for the password again.
 
 Scripts can pass `--password-stdin` and `--passphrase-stdin` (answers one per line, password first), `--yes` to skip confirmations and `--json` for machine-readable output. Exit codes: 0 done, 1 error, 2 bad usage, 3 login or vault needed, 4 another run holds the lock, 5 stopped partway (run `repair`).
 
@@ -75,7 +75,7 @@ To reach it from anywhere without a tunnel, give it a domain pointing at the ser
 That puts a root-level control panel on the internet behind your OS password, so prefer the tunnel unless you need it. Either way:
 
 - Only `shiver-admins` members can log in, with the same pause after failed logins. Sessions end after 10 idle minutes.
-- Showing a secret token, deleting a server, restoring a backup, changing the vault passphrase and removing everything ask for your password again.
+- Showing a secret token, making a new one, deleting a server, restoring a backup, changing the vault passphrase and removing everything ask for your password again.
 - Each action runs the same command the terminal runs, logged under your name with "(web)"; its progress shows live.
 - The page refuses requests from other sites and unknown host names.
 
@@ -102,7 +102,7 @@ That puts a root-level control panel on the internet behind your OS password, so
 
 ### 2. Owner tokens
 
-Sharkord prints a server's secret (owner) token once, at its first start; the manager captures it into the vault. **Show** asks for your password again and hides it on the next key. **Save** stores a token you have (for imported servers), after checking it against the server's database.
+Sharkord prints a server's secret (owner) token once, at its first start; the manager captures it into the vault. **Show** asks for your password again and hides it on the next key. **Save** stores a token you have (for imported servers), after checking it against the server's database. **Make a new one** (`token new <id>`) replaces a lost or leaked token: it asks for your password again, backs the server up, stops it, puts the new token in its database, saves it in the vault and starts it again. The old token stops working. Sharkord also signs logins with the token, so everyone on the server has to log in again. Existing owners stay owners. Restoring a backup made before the change brings back the old token.
 
 ### 3. Certificates
 

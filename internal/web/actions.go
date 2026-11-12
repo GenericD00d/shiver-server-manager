@@ -249,6 +249,9 @@ var Actions = map[string]Action{
 	}},
 	"shiver.install": {Title: "Install Shiver", Build: func(c *checker) ([]string, []string) { return []string{"shiver", "install", c.id("id")}, nil }},
 	"shiver.update":  {Title: "Update Shiver", Build: func(c *checker) ([]string, []string) { return []string{"shiver", "update", c.idOrAll("id")}, nil }},
+	"token.new": {Title: "Make a new secret token", Reauth: true, Build: func(c *checker) ([]string, []string) {
+		return []string{"token", "new", c.id("id")}, nil
+	}},
 	"token.save": {Title: "Save a secret token", Build: func(c *checker) ([]string, []string) {
 		return []string{"token", "save", c.id("id")}, []string{c.secret("token", true)}
 	}},

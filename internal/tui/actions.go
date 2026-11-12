@@ -247,12 +247,18 @@ var Sections = []Section{
 				return []string{"instance", "delete", id}, ok, err
 			}},
 	}},
-	{"Owner tokens", "save, show", []Action{
+	{"Owner tokens", "save, show, make a new one", []Action{
 		{Title: "Show a secret token", Desc: "asks for your password again", Reauth: true, Form: func(snap Snapshot) ([]string, bool, error) {
 			id, ok, err := pickServer(snap, "Whose secret token?", false)
 			return []string{"token", "show", id}, ok, err
 		}},
 		serverCmd("Save a secret token", "for imported servers, or one you have", false, "token", "save"),
+		{Title: "Make a new secret token", Desc: "the old one stops working; everyone logs in again", Destructive: true, Reauth: true, PassYes: true,
+			Confirm: "Give %[3]s a new secret token? The old one stops working, everyone on the server has to log in again, and the server restarts.",
+			Form: func(snap Snapshot) ([]string, bool, error) {
+				id, ok, err := pickServer(snap, "Which server?", false)
+				return []string{"token", "new", id}, ok, err
+			}},
 	}},
 	{"Shiver plugins", "the Shiver plugins on offer: install, update", []Action{
 		plain("Shiver plugins on offer", "with their latest versions and what each server has", "plugin", "catalog"),
