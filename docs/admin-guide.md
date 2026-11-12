@@ -66,6 +66,8 @@ It only listens on the server itself (`127.0.0.1:8443`), so nothing new is expos
 
 then browse to http://localhost:8443 and log in with your OS username and password, the same as the menu (two-factor codes included).
 
+On the Servers page, click a server to see its details: ports, data folder, limits, health and plugins. A tick next to a server means it's healthy, a warning sign that it needs attention, and an (i) that one of its plugins has an update (install it on the Shiver plugins page).
+
 To reach it from anywhere without a tunnel, give it a domain pointing at the server; Caddy then serves it over HTTPS:
 
     sudo shiver-server-manager web enable --domain admin.example.com
@@ -96,7 +98,7 @@ That puts a root-level control panel on the internet behind your OS password, so
 | Change domain | Sets up the new domain and certificate first, then retires the old one. Members need the new address. |
 | Limit memory and CPU | Caps one server so it can't slow the others. |
 | Delete a server | Asks for your password and the server's ID, then removes its service, site, certificate, firewall rules, data (wiping an encrypted container's keys), secrets and user. Export it first if you might want it back. |
-| Shiver | Install, update, update everywhere, versions. See "The Shiver plugin". |
+| Shiver plugins | The plugins on offer, install or update one, what each server has. See "Shiver plugins". |
 
 ### 2. Owner tokens
 
@@ -136,9 +138,13 @@ By default, backups run at 00:00 and 12:00 and keep the last 14 per server (one 
 
 Restoring unpacks beside the current data and swaps it in while the server is stopped; if the server doesn't start, the previous data goes back.
 
-## The Shiver plugin
+## Shiver plugins
 
-Servers > Install Shiver installs the server half of [Shiver](https://github.com/GenericD00d/Shiver) in one step: the plugin from the latest Shiver release, checked against that release's checksums and its manifest, with plugins switched on. The server is backed up and restarted, and if Sharkord can't load the plugin the previous copy goes back. The health check says when a new version is out. Remove it in Sharkord's own Settings > Plugins, which also deletes the data Shiver keeps for each user.
+The Shiver plugins page (Shiver plugins in the terminal menu, or `plugin catalog`) lists the plugins on offer: [Shiver](https://github.com/GenericD00d/Shiver) itself (the server half of the Shiver apps), [Shiver Temp Share](https://github.com/GenericD00d/sharkord-temp-share) and [Shiver Media Player](https://github.com/GenericD00d/shiver-media-player), with each one's latest version and what every server has. The list is `plugins.json` in the manager's own repository, read from GitHub (and kept for an hour), so new plugins appear without updating the manager. While the repository is private, reading it needs the GitHub token from System > Updates; without the list, the page says plugins are unavailable.
+
+Install or Update fetches the plugin's latest release, checks it against the checksum published with it and checks its manifest (the right plugin, the plugin SDK of the server's Sharkord), and installs it with plugins switched on. The server is backed up and restarted, and if Sharkord can't load the plugin the previous copy goes back. From the terminal: `plugin add <id> <plugin>`. The Servers page marks a server with an update waiting with an (i). Remove a plugin in Sharkord's own Settings > Plugins, which also deletes the data it keeps.
+
+The older `shiver install`, `shiver update` and `shiver status` commands still work for Shiver itself.
 
 
 ## Other plugins

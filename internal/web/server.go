@@ -248,6 +248,7 @@ var reads = map[string][]string{
 	"update":          {"self-update", "--check"},
 	"backupSchedules": {"backup", "schedule"},
 	"plugins":         {"plugin", "list"},
+	"catalog":         {"plugin", "catalog"},
 }
 
 func (s *Server) globals(user string) []string {

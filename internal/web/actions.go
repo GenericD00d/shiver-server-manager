@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -51,6 +52,17 @@ func (c *checker) id(name string) string {
 	v := c.raw(name)
 	if err := validate.InstanceID(v); err != nil {
 		return c.fail(name, err.Error())
+	}
+	return v
+}
+
+// pluginRE is a plugin ID as plugins.json and manifests have them.
+var pluginRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+
+func (c *checker) pluginID(name string) string {
+	v := c.raw(name)
+	if !pluginRE.MatchString(v) || strings.Contains(v, "..") {
+		return c.fail(name, "not a plugin ID")
 	}
 	return v
 }
@@ -231,6 +243,9 @@ var Actions = map[string]Action{
 	}},
 	"plugin.install": {Title: "Install a plugin", Build: func(c *checker) ([]string, []string) {
 		return []string{"plugin", "install", c.id("id"), c.absPath("file", true)}, nil
+	}},
+	"plugin.add": {Title: "Install a Shiver plugin", Build: func(c *checker) ([]string, []string) {
+		return []string{"plugin", "add", c.id("id"), c.pluginID("plugin")}, nil
 	}},
 	"shiver.install": {Title: "Install Shiver", Build: func(c *checker) ([]string, []string) { return []string{"shiver", "install", c.id("id")}, nil }},
 	"shiver.update":  {Title: "Update Shiver", Build: func(c *checker) ([]string, []string) { return []string{"shiver", "update", c.idOrAll("id")}, nil }},

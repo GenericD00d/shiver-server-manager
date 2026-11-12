@@ -95,6 +95,8 @@ type Sys struct {
 	// ManagerLatest looks up the manager's latest release (nil skips it).
 	ManagerLatest func(ctx context.Context) (string, error)
 	Shiver        *plugins.Client
+	// Catalog reads plugins.json, the Shiver plugins on offer.
+	Catalog *plugins.CatalogClient
 	// PluginLog reads a unit's journal since a time (nil skips the check).
 	PluginLog func(ctx context.Context, unit string, since time.Time) (string, error)
 	// FindRouter finds the home router for UPnP.
@@ -148,6 +150,7 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 	}
 	s.EraseContainer = s.eraseContainer
 	s.Shiver = plugins.NewClient(userAgent, filepath.Join(p.CacheDir, "shiver-release.json"))
+	s.Catalog = plugins.NewCatalogClient(userAgent, paths.UpdateTokenFile, filepath.Join(p.CacheDir, "plugin-catalog.json"))
 	s.PluginLog = journalSince(r)
 	s.FindRouter = func(ctx context.Context) (PortMapper, error) { return netinfo.FindRouter(ctx) }
 	s.DNSCheck = func(ctx context.Context, domain string) netinfo.DNSResult {

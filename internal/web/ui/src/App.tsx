@@ -1,4 +1,4 @@
-import { Archive, BrickWall, HardDrive, LoaderCircle, LogOut, Server, ShieldCheck, ShieldEllipsis, Wrench } from 'lucide-react';
+import { Archive, BrickWall, HardDrive, LoaderCircle, LogOut, Puzzle, Server, ShieldCheck, ShieldEllipsis, Wrench } from 'lucide-react';
 import { useEffect, useState, type ComponentType } from 'react';
 import { ActionProvider } from './actions';
 import { api, setOnLoggedOut, type Me, type Meta } from './api';
@@ -7,6 +7,7 @@ import { Login } from './Login';
 import { BackupsPage } from './pages/Backups';
 import { CertificatesPage } from './pages/Certificates';
 import { FirewallPage } from './pages/Firewall';
+import { PluginsPage } from './pages/Plugins';
 import { SecurityPage } from './pages/Security';
 import { ServersPage } from './pages/Servers';
 import { StoragePage } from './pages/Storage';
@@ -16,6 +17,7 @@ export type PageProps = { meta: Meta };
 
 const pages: { id: string; title: string; icon: ComponentType<{ className?: string }>; Page: ComponentType<PageProps> }[] = [
   { id: 'servers', title: 'Servers', icon: Server, Page: ServersPage },
+  { id: 'plugins', title: 'Shiver plugins', icon: Puzzle, Page: PluginsPage },
   { id: 'certificates', title: 'Certificates', icon: ShieldCheck, Page: CertificatesPage },
   { id: 'backups', title: 'Backups', icon: Archive, Page: BackupsPage },
   { id: 'storage', title: 'Storage', icon: HardDrive, Page: StoragePage },
@@ -68,7 +70,13 @@ export function App() {
               <div className="text-sm font-semibold">Shiver Server Manager</div>
               <div className="text-muted-foreground text-xs">{me.version}</div>
             </div>
-            <Button className="ml-auto md:hidden" variant="ghost" size="icon" title={`Log out ${me.user}`} onClick={() => api.post('/api/logout').finally(() => setMe(null))}>
+            <Button
+              className="ml-auto md:hidden"
+              variant="ghost"
+              size="icon"
+              title={`Log out ${me.user}`}
+              onClick={() => api.post('/api/logout').finally(() => setMe(null))}
+            >
               <LogOut />
             </Button>
           </div>
@@ -88,12 +96,7 @@ export function App() {
           </nav>
           <div className="mt-auto hidden items-center justify-between gap-2 border-t px-4 py-3 md:flex">
             <span className="text-muted-foreground truncate text-sm">{me.user}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Log out"
-              onClick={() => api.post('/api/logout').finally(() => setMe(null))}
-            >
+            <Button variant="ghost" size="icon" title="Log out" onClick={() => api.post('/api/logout').finally(() => setMe(null))}>
               <LogOut />
             </Button>
           </div>

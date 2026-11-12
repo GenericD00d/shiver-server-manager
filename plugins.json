@@ -1,0 +1,28 @@
+{
+  "plugins": [
+    {
+      "id": "shiver",
+      "name": "Shiver",
+      "description": "The server half of the Shiver apps: each member's Shiver settings kept on the server so they follow them to every device (muted channels, custom statuses, push notifications), and usernames in their role colour for everyone.",
+      "repo": "GenericD00d/Shiver",
+      "asset": "^shiver-plugin-([0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\\.zip$",
+      "checksums": "SHA256SUMS.txt"
+    },
+    {
+      "id": "temp-share",
+      "name": "Shiver Temp Share",
+      "description": "Share large files with links that expire after a set time or number of downloads.",
+      "repo": "GenericD00d/sharkord-temp-share",
+      "asset": "^temp-share-([0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\\.tar\\.gz$",
+      "checksums": "{version}.json"
+    },
+    {
+      "id": "shiver-media-player",
+      "name": "Shiver Media Player",
+      "description": "Watch videos together in a voice channel with shared play, pause and seek controls.",
+      "repo": "GenericD00d/shiver-media-player",
+      "asset": "^shiver-media-player-([0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\\.tar\\.gz$",
+      "checksums": "{version}.json"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -95,6 +96,15 @@ func nonEmpty(s string) error {
 
 func domainCheck(s string) error { _, err := validate.Domain(s); return err }
 
+var pluginRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+
+func pluginID(s string) error {
+	if !pluginRE.MatchString(s) || strings.Contains(s, "..") {
+		return errors.New("lowercase letters, digits, dots, dashes and underscores")
+	}
+	return nil
+}
+
 func positive(s string) error {
 	if n, err := strconv.Atoi(strings.TrimSpace(s)); err != nil || n < 0 {
 		return errors.New("a whole number")
@@ -120,7 +130,7 @@ func plain(title, desc string, args ...string) Action {
 
 // Sections are the menu, as laid out in the checklist.
 var Sections = []Section{
-	{"Servers", "create, import, export, start/stop, settings, logs, update, back up, restore, delete, Shiver", []Action{
+	{"Servers", "create, import, export, start/stop, settings, logs, update, back up, restore, delete", []Action{
 		{Title: "Create a server", Desc: "a name, a domain and a certificate type", Form: func(snap Snapshot) ([]string, bool, error) {
 			var id, domain, tls = "", "", "letsencrypt"
 			ok, err := run(
@@ -236,10 +246,6 @@ var Sections = []Section{
 				id, ok, err := pickServer(snap, "Delete which server?", false)
 				return []string{"instance", "delete", id}, ok, err
 			}},
-		serverCmd("Install Shiver", "the Shiver plugin, in one step", false, "shiver", "install"),
-		serverCmd("Update Shiver", "to the latest release", false, "shiver", "update"),
-		plain("Update Shiver everywhere", "one server at a time", "shiver", "update", "--all"),
-		plain("Shiver versions", "installed next to the latest", "shiver", "status"),
 	}},
 	{"Owner tokens", "save, show", []Action{
 		{Title: "Show a secret token", Desc: "asks for your password again", Reauth: true, Form: func(snap Snapshot) ([]string, bool, error) {
@@ -247,6 +253,19 @@ var Sections = []Section{
 			return []string{"token", "show", id}, ok, err
 		}},
 		serverCmd("Save a secret token", "for imported servers, or one you have", false, "token", "save"),
+	}},
+	{"Shiver plugins", "the Shiver plugins on offer: install, update", []Action{
+		plain("Shiver plugins on offer", "with their latest versions and what each server has", "plugin", "catalog"),
+		{Title: "Install or update a Shiver plugin", Desc: "from its latest release", Form: func(snap Snapshot) ([]string, bool, error) {
+			id, ok, err := pickServer(snap, "On which server?", false)
+			if !ok || err != nil {
+				return nil, ok, err
+			}
+			plugin := ""
+			ok, err = run(input("Plugin ID", "as 'Shiver plugins on offer' lists it, such as shiver or temp-share", &plugin, pluginID))
+			return []string{"plugin", "add", id, plugin}, ok, err
+		}},
+		plain("Plugins on each server", "everything installed, Shiver's or not", "plugin", "list"),
 	}},
 	{"Certificates", "status and expiry, switch type, retry, test mode, root certificate", []Action{
 		plain("Certificate status", "and expiry", "cert", "status"),

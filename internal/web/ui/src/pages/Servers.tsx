@@ -1,9 +1,9 @@
-import { Ellipsis, Eye, Import, Plus } from 'lucide-react';
+import { CircleAlert, CircleCheck, Ellipsis, Eye, Import, Info, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { PageProps } from '../App';
 import { useActions, type ActionSpec, type Field } from '../actions';
-import { api, ApiError, type Health, type Server } from '../api';
-import { Problem, Reload, Section, StateBadge, Table, Td, Notices } from '../common';
+import { api, ApiError, type CatalogPlugin, type Health, type Notice, type PluginList, type Server } from '../api';
+import { fmtDate, Problem, Reload, Section, StateBadge, Table, Td, Notices } from '../common';
 import { Button } from '../components/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/dialog';
 import {
@@ -18,8 +18,6 @@ import { Input } from '../components/input';
 import { Label } from '../components/label';
 import { useData } from '../hooks';
 
-type PluginList = { instance: string; plugins: { id: string; name: string; version: string; author: string }[] };
-
 const tlsOptions = [
   { value: 'letsencrypt', label: "Let's Encrypt (trusted everywhere; needs ports 80 and 443 open)" },
   { value: 'selfsigned', label: 'Self-signed (members install a root certificate)' }
@@ -30,6 +28,7 @@ export function ServersPage({ meta }: PageProps) {
   const servers = useData<Server[]>('servers', jobsChanged);
   const health = useData<Health>('health', jobsChanged);
   const pluginLists = useData<PluginList[] | null>('plugins', jobsChanged);
+  const catalog = useData<CatalogPlugin[]>('catalog', jobsChanged);
   const storage = useData<{ locations: { path: string; default?: boolean }[] }>('storage', jobsChanged);
   const locations = storage.data?.locations ?? [];
   const defaultLocation = locations.find((l) => l.default)?.path ?? '';
@@ -48,6 +47,7 @@ export function ServersPage({ meta }: PageProps) {
     help: "Skips the check that the domain's A record holds this server's address. Self-signed servers never check."
   };
   const [tokenFor, setTokenFor] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const createSpec: ActionSpec = {
     action: 'server.create',
@@ -58,7 +58,13 @@ export function ServersPage({ meta }: PageProps) {
       { name: 'domain', label: 'Domain', required: true, placeholder: 'chat.example.com' },
       { name: 'tls', label: 'Certificate', type: 'select', options: tlsOptions, initial: 'letsencrypt', required: true },
       ...(locations.length > 1 ? [locationField] : []),
-      { name: 'encrypt', label: 'Encrypted data folder', type: 'switch', initial: 'true', help: 'Protects a stolen disk; after a reboot, the server waits for the vault to be unlocked.' },
+      {
+        name: 'encrypt',
+        label: 'Encrypted data folder',
+        type: 'switch',
+        initial: 'true',
+        help: 'Protects a stolen disk; after a reboot, the server waits for the vault to be unlocked.'
+      },
       skipDNS
     ]
   };
@@ -86,12 +92,16 @@ export function ServersPage({ meta }: PageProps) {
   };
 
   const list = servers.data ?? [];
+  const notices = health.data?.notices ?? [];
+  const updates = (id: string) =>
+    (catalog.data ?? []).filter((p) => p.servers.some((x) => x.instance === id && x.update)).map((p) => ({ name: p.name, latest: p.latest ?? '' }));
+  const current = list.find((s) => s.id === selected) ?? list[0];
   return (
     <>
-      <Notices notices={(health.data?.notices ?? []).filter((n) => n.level !== 'info' || n.key.startsWith('locked'))} />
+      <Notices notices={notices.filter((n) => n.level !== 'info' || n.key.startsWith('locked'))} />
       <Section
         title="Your servers"
-        description="Each is a Sharkord community on its own domain."
+        description="Each is a Sharkord community on its own domain. Select one to see its details."
         actions={
           <>
             <Reload onClick={servers.reload} loading={servers.loading} />
@@ -109,57 +119,74 @@ export function ServersPage({ meta }: PageProps) {
           head={['Server', 'State', 'Domain', 'Certificate', 'Sharkord', 'Storage', '']}
           empty={list.length === 0 && !servers.loading && !servers.error && <p className="text-muted-foreground py-6 text-center text-sm">No servers yet.</p>}
         >
-          {list.map((s) => (
-            <tr key={s.id}>
-              <Td className="font-medium">{s.id}</Td>
-              <Td>
-                <StateBadge s={s} />
-              </Td>
-              <Td>
-                <a className="underline-offset-4 hover:underline" href={`https://${s.domain}`} target="_blank" rel="noreferrer">
-                  {s.domain}
-                </a>
-              </Td>
-              <Td className="text-muted-foreground">{s.tls === 'selfsigned' ? 'self-signed' : s.testMode ? 'staging' : "Let's Encrypt"}</Td>
-              <Td className="text-muted-foreground">{s.sharkordVersion}</Td>
-              <Td className="text-muted-foreground">
-                {s.location}
-                {s.encrypted && ' · encrypted'}
-              </Td>
-              <Td className="text-right">
-                <ServerMenu s={s} meta={meta} onShowToken={() => setTokenFor(s.id)} />
-              </Td>
-            </tr>
-          ))}
-        </Table>
-      </Section>
-      <Section
-        title="Plugins"
-        description="Installed on each server. Install one from a file with a server's menu (…); remove one in Sharkord's own Settings > Plugins."
-        actions={<Reload onClick={pluginLists.reload} loading={pluginLists.loading} />}
-      >
-        <Problem error={pluginLists.error} />
-        <Table
-          head={['Server', 'Plugin', 'Version', 'Author']}
-          empty={
-            (pluginLists.data ?? []).every((l) => l.plugins.length === 0) &&
-            !pluginLists.loading && <p className="text-muted-foreground py-6 text-center text-sm">No plugins installed.</p>
-          }
-        >
-          {(pluginLists.data ?? []).flatMap((l) =>
-            l.plugins.map((p) => (
-              <tr key={l.instance + p.id}>
-                <Td className="font-medium">{l.instance}</Td>
-                <Td>
-                  {p.name || p.id} <span className="text-muted-foreground font-mono text-xs">{p.id}</span>
+          {list.map((s) => {
+            const isCurrent = current?.id === s.id;
+            const ups = updates(s.id);
+            return (
+              <tr
+                key={s.id}
+                tabIndex={0}
+                aria-selected={isCurrent}
+                onClick={() => setSelected(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelected(s.id);
+                  }
+                }}
+                className={`hover:bg-muted/50 focus-visible:ring-ring cursor-pointer outline-none focus-visible:ring-2 ${isCurrent ? 'bg-muted' : ''}`}
+              >
+                <Td className="font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <HealthIcon s={s} notices={notices.filter((n) => n.instance === s.id)} />
+                    {s.id}
+                    {ups.length > 0 && (
+                      <span title={`Plugin update available: ${ups.map((u) => `${u.name} ${u.latest}`).join(', ')}`} aria-label="Plugin update available">
+                        <Info className="text-primary size-4" />
+                      </span>
+                    )}
+                  </span>
                 </Td>
-                <Td className="text-muted-foreground">{p.version}</Td>
-                <Td className="text-muted-foreground">{p.author}</Td>
+                <Td>
+                  <StateBadge s={s} />
+                </Td>
+                <Td>
+                  <a
+                    className="underline-offset-4 hover:underline"
+                    href={`https://${s.domain}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {s.domain}
+                  </a>
+                </Td>
+                <Td className="text-muted-foreground">{s.tls === 'selfsigned' ? 'self-signed' : s.testMode ? 'staging' : "Let's Encrypt"}</Td>
+                <Td className="text-muted-foreground">{s.sharkordVersion}</Td>
+                <Td className="text-muted-foreground">
+                  {s.location}
+                  {s.encrypted && ' · encrypted'}
+                </Td>
+                <Td className="text-right">
+                  <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <ServerMenu s={s} meta={meta} onShowToken={() => setTokenFor(s.id)} />
+                  </span>
+                </Td>
               </tr>
-            ))
-          )}
+            );
+          })}
         </Table>
       </Section>
+      {current && (
+        <ServerDetails
+          s={current}
+          notices={notices.filter((n) => n.instance === current.id)}
+          checkedAt={health.data?.checkedAt}
+          plugins={(pluginLists.data ?? []).find((l) => l.instance === current.id)?.plugins ?? null}
+          pluginsError={pluginLists.error}
+          catalog={catalog.data}
+        />
+      )}
       {tokenFor && <TokenDialog id={tokenFor} onClose={() => setTokenFor(null)} />}
     </>
   );
@@ -184,9 +211,18 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>{s.id}</DropdownMenuLabel>
         {s.locked
-          ? item('Unlock (vault)', { action: 'vault.unlock', title: 'Unlock the vault', description: 'Opens every encrypted server waiting since a reboot, and starts it.', fields: [passphrase] })
+          ? item('Unlock (vault)', {
+              action: 'vault.unlock',
+              title: 'Unlock the vault',
+              description: 'Opens every encrypted server waiting since a reboot, and starts it.',
+              fields: [passphrase]
+            })
           : s.active === 'active'
-            ? item('Stop', { action: 'server.stop', title: `Stop ${s.id}`, description: 'It stays stopped until you start it; repair and the health check leave it alone.' })
+            ? item('Stop', {
+                action: 'server.stop',
+                title: `Stop ${s.id}`,
+                description: 'It stays stopped until you start it; repair and the health check leave it alone.'
+              })
             : item('Start', { action: 'server.start', title: `Start ${s.id}` })}
         {item('Restart', { action: 'server.restart', title: `Restart ${s.id}` })}
         {item('Change a setting', {
@@ -194,7 +230,13 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
           title: `Change a setting on ${s.id}`,
           description: 'Sharkord’s settings; the server restarts. Leave the value empty to go back to the default.',
           fields: [
-            { name: 'key', label: 'Setting', type: 'select', required: true, options: meta.settings.map((x) => ({ value: x.Name, label: `${x.Name} — ${x.Help}` })) },
+            {
+              name: 'key',
+              label: 'Setting',
+              type: 'select',
+              required: true,
+              options: meta.settings.map((x) => ({ value: x.Name, label: `${x.Name} — ${x.Help}` }))
+            },
             { name: 'value', label: 'Value', help: 'Lists are comma-separated.' }
           ]
         })}
@@ -235,10 +277,7 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
           action: 'server.move',
           title: `Move ${s.id}`,
           description: 'It’s offline while its data is copied; the old copy is kept until you delete it.',
-          fields: [
-            { name: 'to', label: 'Storage location', required: true, placeholder: '/srv/sharkord-disk2/sharkord' },
-            ...(s.encrypted ? [passphrase] : [])
-          ]
+          fields: [{ name: 'to', label: 'Storage location', required: true, placeholder: '/srv/sharkord-disk2/sharkord' }, ...(s.encrypted ? [passphrase] : [])]
         })}
         {s.encrypted &&
           item('Grow storage', {
@@ -255,7 +294,6 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
             'A Sharkord plugin as a .zip or .tar (.tar.gz, .tar.zst): manifest.json, server/index.js and client/index.js. The server is backed up and restarted; if Sharkord can’t load the plugin, the previous copy comes back. Only install plugins you trust: they run inside Sharkord with access to its data.',
           fields: [{ name: 'file', label: 'Plugin file (up to 100 MB)', type: 'file', accept: '.zip,.tar,.gz,.tgz,.zst,.tzst', required: true }]
         })}
-        {item('Install or update Shiver', { action: 'shiver.install', title: `Shiver on ${s.id}`, description: 'Backs up, installs the latest Shiver plugin, and restarts; the previous copy comes back if Sharkord can’t load it.' })}
         <DropdownMenuItem onSelect={onShowToken}>
           <Eye /> Show secret token
         </DropdownMenuItem>
@@ -280,6 +318,170 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// isUnhealthy: something an admin should look at, as opposed to a server
+// stopped on purpose or waiting for the vault.
+const isUnhealthy = (s: Server, notices: Notice[]) =>
+  !!s.operation || notices.some((n) => n.level !== 'info') || (!s.stopped && !s.locked && (s.active !== 'active' || !s.healthy));
+
+// HealthIcon is a tick for a healthy server and a warning for one with
+// problems; nothing while it's stopped or locked on purpose.
+function HealthIcon({ s, notices }: { s: Server; notices: Notice[] }) {
+  if (isUnhealthy(s, notices)) {
+    const why = s.operation ? `unfinished ${s.operation.name}` : (notices.find((n) => n.level !== 'info')?.message ?? 'not answering');
+    return (
+      <span title={`Needs attention: ${why}`} aria-label="Needs attention">
+        <CircleAlert className="text-destructive size-4" />
+      </span>
+    );
+  }
+  if (s.stopped || s.locked) return <span className="inline-block size-4" />;
+  return (
+    <span title="Healthy" aria-label="Healthy">
+      <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-500" />
+    </span>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-0.5">
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd className="text-sm break-words">{children}</dd>
+    </div>
+  );
+}
+
+// ServerDetails is the selected server's settings, health and plugins.
+function ServerDetails({
+  s,
+  notices,
+  checkedAt,
+  plugins,
+  pluginsError,
+  catalog
+}: {
+  s: Server;
+  notices: Notice[];
+  checkedAt?: string;
+  plugins: PluginList['plugins'] | null;
+  pluginsError: string | null;
+  catalog: CatalogPlugin[] | null;
+}) {
+  const problems = notices.filter((n) => n.level !== 'info');
+  const latest = (id: string) => {
+    const c = catalog?.find((p) => p.id === id);
+    const mine = c?.servers.find((x) => x.instance === s.id);
+    return mine?.update ? c?.latest : undefined;
+  };
+  const changed = Object.entries(s.settings ?? {});
+  return (
+    <Section
+      title={s.id}
+      description={
+        <a className="underline-offset-4 hover:underline" href={`https://${s.domain}`} target="_blank" rel="noreferrer">
+          {s.domain}
+        </a>
+      }
+      actions={<StateBadge s={s} />}
+    >
+      <div className="grid gap-6">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+          <Fact label="Sharkord">{s.sharkordVersion}</Fact>
+          <Fact label="Certificate">{s.tls === 'selfsigned' ? 'Self-signed' : s.testMode ? "Let's Encrypt (staging)" : "Let's Encrypt"}</Fact>
+          <Fact label="Web port (local)">127.0.0.1:{s.httpPort}</Fact>
+          <Fact label="Voice port">{s.webrtcPort} TCP and UDP</Fact>
+          <Fact label="Data folder">
+            <span className="font-mono text-xs">{s.dataPath}</span>
+          </Fact>
+          <Fact label="Encryption">{s.encrypted ? (s.locked ? 'Encrypted, waiting for the vault' : 'Encrypted') : 'Not encrypted'}</Fact>
+          <Fact label="Limits">
+            {s.memoryMaxMiB ? `${s.memoryMaxMiB} MiB` : 'no memory cap'}, {s.cpuPercent ? `${s.cpuPercent}% CPU` : 'no CPU cap'}
+          </Fact>
+          <Fact label="Secret token">{s.tokenSaved ? 'Saved in the vault' : 'Not saved'}</Fact>
+          {s.skipDNSCheck && <Fact label="DNS check">Skipped (behind a proxy)</Fact>}
+        </dl>
+
+        <div className="grid gap-2">
+          <h3 className="text-sm font-medium">Health</h3>
+          {s.operation && (
+            <p className="text-destructive text-sm">
+              Unfinished {s.operation.name}
+              {s.operation.failedStep && ` (stopped at ${s.operation.failedStep})`}
+              {s.operation.error && `: ${s.operation.error}`}. Run Repair on the System page.
+            </p>
+          )}
+          {problems.length > 0 ? (
+            <ul className="grid gap-1.5">
+              {problems.map((n) => (
+                <li key={n.key} className="flex items-start gap-2 text-sm">
+                  <CircleAlert className={`mt-0.5 size-4 shrink-0 ${n.level === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} />
+                  {n.message}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            !s.operation && (
+              <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                {isUnhealthy(s, notices) ? (
+                  <CircleAlert className="text-destructive size-4" />
+                ) : (
+                  <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-500" />
+                )}
+                {s.stopped
+                  ? 'Stopped on purpose.'
+                  : s.locked
+                    ? 'Waiting for the vault to be unlocked.'
+                    : s.active === 'active' && s.healthy
+                      ? 'Running and answering.'
+                      : 'Not answering.'}
+                {checkedAt && ` Last health check ${fmtDate(checkedAt)}.`}
+              </p>
+            )
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <h3 className="text-sm font-medium">Plugins</h3>
+          <Problem error={pluginsError} />
+          {plugins && plugins.length === 0 && <p className="text-muted-foreground text-sm">None installed. See the Shiver plugins page.</p>}
+          {plugins && plugins.length > 0 && (
+            <ul className="grid gap-1.5">
+              {plugins.map((p) => {
+                const next = latest(p.id);
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center gap-x-2 text-sm">
+                    <span>{p.name || p.id}</span>
+                    <span className="text-muted-foreground">{p.version}</span>
+                    {next && (
+                      <a href="#plugins" className="text-primary inline-flex items-center gap-1 underline-offset-4 hover:underline">
+                        <Info className="size-4" /> {next} available
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {changed.length > 0 && (
+          <div className="grid gap-2">
+            <h3 className="text-sm font-medium">Changed settings</h3>
+            <dl className="grid gap-1 text-sm">
+              {changed.map(([k, v]) => (
+                <div key={k} className="flex flex-wrap gap-x-2">
+                  <dt className="font-mono text-xs">{k}</dt>
+                  <dd className="text-muted-foreground font-mono text-xs break-all">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+      </div>
+    </Section>
   );
 }
 

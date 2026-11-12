@@ -73,6 +73,18 @@ export type Server = {
   locked: boolean;
 };
 
+export type CatalogPlugin = {
+  id: string;
+  name: string;
+  description: string;
+  repo: string;
+  latest?: string;
+  error?: string;
+  servers: { instance: string; installed?: string; update?: boolean }[];
+};
+
+export type PluginList = { instance: string; plugins: { id: string; name: string; version: string; author: string }[] };
+
 export type Notice = { key: string; level: 'error' | 'warning' | 'info'; instance?: string; message: string };
 export type Health = { checkedAt?: string; notices: Notice[] | null };
 

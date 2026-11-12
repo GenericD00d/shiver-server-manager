@@ -93,8 +93,78 @@ func (a *App) pluginCmd() *cobra.Command {
 			})
 		},
 	}
-	c := &cobra.Command{Use: "plugin", Short: "Sharkord plugins: list, install from a file", Args: cobra.NoArgs,
-		Long: "Remove a plugin in Sharkord's own Settings -> Plugins. For Shiver, use the shiver commands, which fetch it from its releases."}
-	c.AddCommand(list, install)
+	catalog := &cobra.Command{
+		Use:   "catalog",
+		Short: "List the Shiver plugins on offer, with their latest versions and what each server has",
+		Long:  "The list is plugins.json in the manager's own repository; each plugin comes from its own GitHub releases.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.withOps(state.Shared, func(s *ops.Sys) error {
+				cat, err := s.PluginCatalog(cmd.Context())
+				if err != nil {
+					return err
+				}
+				if a.Globals.JSON {
+					return json.NewEncoder(a.Out).Encode(cat)
+				}
+				w := tabwriter.NewWriter(a.Out, 0, 0, 2, ' ', 0)
+				fmt.Fprintln(w, "PLUGIN\tLATEST\tSERVER\tINSTALLED")
+				for _, p := range cat {
+					latest := p.Latest
+					if p.Error != "" {
+						latest = "unknown: " + p.Error
+					}
+					if len(p.Servers) == 0 {
+						fmt.Fprintf(w, "%s\t%s\t\t\n", p.ID, latest)
+					}
+					for i, sv := range p.Servers {
+						installed := sv.Installed
+						switch {
+						case installed == "":
+							installed = "-"
+						case sv.Update:
+							installed += " (update available)"
+						}
+						if i > 0 {
+							fmt.Fprintf(w, "\t\t%s\t%s\n", sv.Instance, installed)
+						} else {
+							fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.ID, latest, sv.Instance, installed)
+						}
+					}
+				}
+				return w.Flush()
+			})
+		},
+	}
+	add := &cobra.Command{
+		Use:   "add <id> <plugin>",
+		Short: "Install or update a Shiver plugin (see plugin catalog) on a server from its latest release",
+		Long: "Downloads the plugin's latest release and checks its checksum, then installs it like a plugin from a file: " +
+			"the server is backed up, the plugin is swapped in while it's stopped, and the previous copy goes back if Sharkord can't load it.",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, pluginID := args[0], args[1]
+			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
+				return a.logged("plugin add "+pluginID, id, func() error {
+					m, note, err := s.InstallFromCatalog(cmd.Context(), id, pluginID)
+					if err != nil {
+						return err
+					}
+					name := m.Name
+					if name == "" {
+						name = m.ID
+					}
+					a.say("✓ %s %s is running on %s.", name, m.Version, id)
+					if note != "" {
+						a.say("! %s", strings.TrimSpace(note))
+					}
+					return nil
+				})
+			})
+		},
+	}
+	c := &cobra.Command{Use: "plugin", Short: "Sharkord plugins: the Shiver plugins on offer, install from a file, list", Args: cobra.NoArgs,
+		Long: "Remove a plugin in Sharkord's own Settings -> Plugins."}
+	c.AddCommand(list, install, catalog, add)
 	return c
 }

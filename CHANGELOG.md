@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (2026-11-12)
+
+From users' feedback:
+
+- A Shiver plugins page lists the Shiver plugins on offer (Shiver itself, Shiver Temp Share and Shiver Media Player), with each one's latest version and what every server has, and installs or updates one on a server with a click. The list is `plugins.json` in the manager's repository, so new plugins show up without updating the manager; if it can't be read, the page says plugins are unavailable. Each install is checked against the checksum published with the release and backed up first, and the previous copy comes back if Sharkord can't load it. In the terminal: the Shiver plugins menu, `plugin catalog` and `plugin add <id> <plugin>`.
+- The server menu no longer has "Install or update Shiver"; that's on the Shiver plugins page now.
+- The Servers page shows the selected server's details (ports, data folder, limits, health, plugins, changed settings) instead of every server's plugins in one list. Click a server, or use the keyboard, to pick it.
+- Each server has a tick when it's healthy or a warning sign when it needs attention, and an (i) when one of its plugins has an update.
+
 ## 0.2.0 (2026-11-12)
 
 - Runs on more Linux distributions: Debian 12 and 13, Fedora 43 and newer, RHEL, AlmaLinux and Rocky Linux 9 and 10, and openSUSE Tumbleweed and Leap 16, as well as Ubuntu 24.04 and 26.04 and Linux Mint 22. Each release has an `.rpm` beside the `.deb`. Setup installs packages with apt, dnf or zypper, gets Caddy from the Caddy project's own repository where the distribution's is too old (COPR on Fedora and RHEL), and offers firewalld rather than ufw outside Debian and Ubuntu. Self-update installs the right package the right way.
