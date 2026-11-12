@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
 	"github.com/GenericD00d/shiver-server-manager/internal/osuser"
@@ -80,6 +81,9 @@ func TestE2EPlainInstance(t *testing.T) {
 			}
 		}
 		token = newTok
+		// The tests restart chat-a often; let systemd's start limit (5 in
+		// 10 seconds) pass so the next starts aren't refused.
+		time.Sleep(10 * time.Second)
 	})
 
 	t.Run("list", func(t *testing.T) {
