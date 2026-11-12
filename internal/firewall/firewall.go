@@ -221,6 +221,19 @@ func (f Firewalld) cmd(ctx context.Context, args ...string) (string, error) {
 	return strings.TrimSpace(string(res.Stdout)), err
 }
 
+// Enable starts firewalld, opening the SSH ports in its saved settings
+// first (firewall-offline-cmd works while it's stopped) so the admin isn't
+// locked out.
+func (f Firewalld) Enable(ctx context.Context, sshPorts []int) error {
+	for _, p := range sshPorts {
+		if _, err := f.R.Run(ctx, run.Cmd{Name: "firewall-offline-cmd", Args: []string{fmt.Sprintf("--add-port=%d/tcp", p)}}); err != nil {
+			return err
+		}
+	}
+	_, err := f.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"enable", "--now", "firewalld"}})
+	return err
+}
+
 func (f Firewalld) Active(ctx context.Context) (bool, error) {
 	out, err := f.cmd(ctx, "--state")
 	return err == nil && out == "running", nil

@@ -11,15 +11,20 @@ env:
   NFPM_VERSION: v2.48.0
 
 jobs:
-  test:
+  # Unit tests, then one build for every system: the binaries are built
+  # inside AlmaLinux 8 (glibc 2.28, older than any supported system's) and
+  # packaged as a .deb and an .rpm.
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
             arch: amd64
+            rpmarch: x86_64
           - runner: ubuntu-24.04-arm
             arch: arm64
+            rpmarch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
@@ -39,25 +44,57 @@ jobs:
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
       - run: go test -race ./...
-      - name: Build the .deb
-        run: |
-          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=0.0.0-ci" ./cmd/shiver-server-manager
-          ./shiver-server-manager version
-          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION
-          mkdir -p dist
-          ARCH=${{ matrix.arch }} VERSION=0.0.0-ci nfpm package -f packaging/nfpm.yaml -p deb -t dist/
-          dpkg-deb --info dist/*.deb
-          dpkg-deb --contents dist/*.deb
       - name: Check the sudoers file
         run: sudo visudo -cf packaging/sudoers
+      - name: Build on glibc 2.28
+        run: |
+          go mod download
+          docker run --rm -e TESTS=1 -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8 sh /src/packaging/build.sh 0.0.0-ci
+          ./shiver-server-manager version
+      - name: Package
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION
+          mkdir -p dist
+          ARCH=${{ matrix.arch }} VERSION=0.0.0-ci nfpm package -f packaging/nfpm.yaml -p deb -t dist/shiver-server-manager_0.0.0-ci_${{ matrix.arch }}.deb
+          ARCH=${{ matrix.arch }} VERSION=0.0.0-ci nfpm package -f packaging/nfpm.yaml -p rpm -t dist/shiver-server-manager-0.0.0-ci-1.${{ matrix.rpmarch }}.rpm
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb
+          cp auth.test cli.test dist/
       - uses: actions/upload-artifact@v5
         with:
-          name: deb-${{ matrix.arch }}
-          path: dist/*.deb
+          name: pkg-${{ matrix.arch }}
+          path: dist/
 
+  # The full end-to-end run on Ubuntu, both architectures, including the
+  # browser tests (voice and the web page).
+  e2e-ubuntu:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v5
+        with:
+          name: pkg-${{ matrix.arch }}
+          path: dist
+      - run: sudo apt-get update && sudo apt-get install -y cryptsetup dosfstools rsync
       # Below here changes the runner's system. The runner is thrown away after.
       - name: Install the .deb as an admin would
         run: |
+          mv dist/auth.test dist/cli.test . && chmod +x auth.test cli.test
           sudo apt-get install -y ./dist/*.deb
           getent group shiver-admins
           sudo test -d /var/lib/shiver-server-manager/vault
@@ -93,8 +130,6 @@ jobs:
           curl -sfk https://localhost:14000/dir
       - name: PAM and end-to-end tests (as root)
         run: |
-          go test -c -o auth.test ./internal/auth
-          go test -c -o cli.test ./internal/cli
           export SSM_PUBLIC_IP=$(hostname -I | awk '{print $1}')
           sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN ./auth.test -test.run 'TestPAM' -test.v
           sudo --preserve-env=SSM_PAM_ADMIN,SSM_PAM_OUTSIDER,SSM_PAM_PASSWORD,SSM_E2E_BIN,SSM_ACME_CA,SSM_ACME_CA_ROOT,SSM_PEBBLE_ROOTS,SSM_PUBLIC_IP ./cli.test -test.run 'TestE2E' -test.v -test.timeout 30m
@@ -141,35 +176,68 @@ jobs:
           sudo journalctl -u caddy --no-pager -n 100 || true
           cat /tmp/pebble.log || true
 
-  # The install scripts and sudoers file on the other supported systems:
+  # The packages' install scripts, sudoers and PAM files, and that the
+  # binary runs, on every supported system (containers, so no systemd).
   # Ubuntu 26.04 has sudo-rs and the Rust coreutils by default.
   install-scripts:
-    needs: test
+    needs: build
     strategy:
       fail-fast: false
       matrix:
-        image: ["ubuntu:24.04", "ubuntu:26.04"]
+        image: ["ubuntu:24.04", "ubuntu:26.04", "debian:12", "debian:13", "fedora:43", "fedora:44", "almalinux:9", "almalinux:10", "rockylinux/rockylinux:9", "rockylinux/rockylinux:10", "opensuse/leap:16.0", "opensuse/tumbleweed"]
     runs-on: ubuntu-24.04
     container: ${{ matrix.image }}
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
-          name: deb-amd64
+          name: pkg-amd64
+          path: dist
       - name: Install, check, remove
-        env:
-          DEBIAN_FRONTEND: noninteractive
+        run: sh test/install-check.sh dist
+
+  # The end-to-end tests on each distribution's own cloud image, booted
+  # under KVM: real systemd, PAM, SELinux where the system has it, LUKS and
+  # firewalld. amd64 only: the arm64 runners have no KVM.
+  e2e-vm:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        system: [debian-13, fedora-44, alma-9, alma-10, tumbleweed, leap-16]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v5
+        with:
+          name: pkg-amd64
+          path: vm
+      - name: KVM and QEMU
         run: |
-          apt-get update
-          # A bare container: recommends (cryptsetup) pull in interactive setup.
-          apt-get install -y --no-install-recommends ./shiver-server-manager_*.deb sudo
-          getent group shiver-admins
-          test "$(stat -c %a /var/lib/shiver-server-manager)" = 711
-          test "$(stat -c %a /var/lib/shiver-server-manager/vault)" = 700
-          test "$(stat -c %a /etc/sudoers.d/shiver-server-manager)" = 440
-          visudo -c
-          shiver-server-manager version
-          useradd -m -G shiver-admins ci-admin
-          su ci-admin -c "sudo -n /usr/bin/shiver-server-manager version"
-          apt-get remove -y shiver-server-manager
-          apt-get purge -y shiver-server-manager
-          test -d /var/lib/shiver-server-manager
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+      - name: Pebble (Let's Encrypt's test server), for inside the VM
+        run: |
+          git clone -q --depth 1 --branch v2.10.1 https://github.com/letsencrypt/pebble /tmp/pebble
+          cd /tmp/pebble && CGO_ENABLED=0 go build -o pebble ./cmd/pebble
+          mkdir -p "$GITHUB_WORKSPACE/vm/pebble/test"
+          cp pebble "$GITHUB_WORKSPACE/vm/pebble/"
+          cp -r test/config test/certs "$GITHUB_WORKSPACE/vm/pebble/test/"
+      # The cloud images change now and then; a weekly key keeps them fresh.
+      - id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/vm/*.qcow2
+          key: vm-image-${{ matrix.system }}-${{ steps.week.outputs.week }}
+      - name: End-to-end tests in the VM
+        run: bash test/vm/run.sh ${{ matrix.system }} vm
+      - name: VM console
+        if: failure()
+        run: tail -n 200 /tmp/vm/console.log || true

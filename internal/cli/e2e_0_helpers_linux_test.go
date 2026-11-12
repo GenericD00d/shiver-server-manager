@@ -100,3 +100,23 @@ func (e *e2e) stdout(t *testing.T, moreStdin string, args ...string) string {
 }
 
 func runnerForTest() run.Runner { return &run.Exec{} }
+
+// firewallText is the active firewall's rules as text: ufw's numbered
+// status, or firewalld's default zone followed by each sharkord service.
+func firewallText(t *testing.T) (name, text string) {
+	t.Helper()
+	if out, err := exec.Command("firewall-cmd", "--state").Output(); err == nil && strings.TrimSpace(string(out)) == "running" {
+		zone, _ := exec.Command("firewall-cmd", "--list-all").CombinedOutput()
+		text = string(zone)
+		svcs, _ := exec.Command("firewall-cmd", "--list-services").Output()
+		for _, s := range strings.Fields(string(svcs)) {
+			if strings.HasPrefix(s, "sharkord-") {
+				info, _ := exec.Command("firewall-cmd", "--info-service="+s).CombinedOutput()
+				text += "\n" + string(info)
+			}
+		}
+		return "firewalld", text
+	}
+	out, _ := exec.Command("ufw", "status", "numbered").CombinedOutput()
+	return "ufw", string(out)
+}

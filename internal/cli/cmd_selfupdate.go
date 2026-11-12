@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/fsutil"
+	"github.com/GenericD00d/shiver-server-manager/internal/ops"
 	"github.com/GenericD00d/shiver-server-manager/internal/paths"
 	"github.com/GenericD00d/shiver-server-manager/internal/run"
 	"github.com/GenericD00d/shiver-server-manager/internal/selfupdate"
@@ -41,7 +42,7 @@ func (a *App) selfUpdateCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "self-update",
 		Short: "Update the manager itself to its latest release",
-		Long: "Downloads the latest release's package for this machine from GitHub, checks it against the release's SHA256SUMS, and installs it with apt. " +
+		Long: "Downloads the latest release's package for this machine from GitHub, checks it against the release's SHA256SUMS, and installs it with the system's package manager (apt, dnf or zypper). " +
 			"Servers keep running; the web page restarts on the new version. While the repository is private, save a GitHub token first with: self-update token",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -84,7 +85,8 @@ func (a *App) selfUpdateCmd() *cobra.Command {
 					a.say("✓ %s is the latest version.", a.Version)
 					return nil
 				}
-				name := selfupdate.PackageName(paths.Cmd, rel.Version, runtime.GOARCH)
+				osInfo, _ := ops.OS() // unreadable: Debian's, the default
+				name := selfupdate.PackageName(paths.Cmd, rel.Version, runtime.GOARCH, osInfo.PackageFormat())
 				a.say("Downloading %s...", name)
 				_ = os.RemoveAll(updatesDir) // earlier downloads
 				pkg, err := cl.Download(cmd.Context(), rel, name, updatesDir)
@@ -92,7 +94,7 @@ func (a *App) selfUpdateCmd() *cobra.Command {
 					return err
 				}
 				a.say("✓ It matches the release's SHA256SUMS.")
-				args := selfupdate.InstallArgs(selfUpdateUnit, pkg, !background)
+				args := selfupdate.InstallArgs(selfUpdateUnit, pkg, osInfo.PackageManager(), !background)
 				if background {
 					// From the web page: the install outlives this job, since
 					// it restarts the web service.

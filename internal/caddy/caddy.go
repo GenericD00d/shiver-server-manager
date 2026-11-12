@@ -29,6 +29,7 @@ type Caddy struct {
 	GlobalFile string // /etc/caddy/<manager>/global.caddy
 	SitesDir   string // /etc/caddy/sites
 	DataDir    string // /var/lib/caddy/.local/share/caddy
+	DropIn     string // UnitDropIn; empty skips EnsureUnit (tests)
 }
 
 func New(r run.Runner, globalFile string) *Caddy {
@@ -38,6 +39,7 @@ func New(r run.Runner, globalFile string) *Caddy {
 		GlobalFile: globalFile,
 		SitesDir:   "/etc/caddy/sites",
 		DataDir:    "/var/lib/caddy/.local/share/caddy",
+		DropIn:     UnitDropIn,
 	}
 }
 
@@ -50,8 +52,10 @@ func (c *Caddy) certDir(issuer, d string) string {
 	return filepath.Join(c.DataDir, "certificates", issuer, d)
 }
 
-// MinVersion is the oldest Caddy with the settings the manager uses.
-var MinVersion = [3]int{2, 11, 0}
+// MinVersion is the oldest Caddy the manager is tested with: 2.10.0 is
+// openSUSE Leap 16's (CI's end-to-end tests run on it); elsewhere setup
+// installs the latest from the Caddy project.
+var MinVersion = [3]int{2, 10, 0}
 
 // Caddy's own builds print "v2.11.9 h1:...", Ubuntu's package just "2.6.2".
 var versionRE = regexp.MustCompile(`(?m)^\s*v?(\d+)\.(\d+)\.(\d+)`)
@@ -169,6 +173,86 @@ func (c *Caddy) Apply(ctx context.Context, files map[string][]byte, restart bool
 		return c.Restart(ctx)
 	}
 	return c.Reload(ctx)
+}
+
+// UnitDropIn adjusts the packaged service where it differs from Caddy's
+// own: openSUSE's starts with --resume (the last configuration set through
+// the API wins over the Caddyfile after a restart) and reloads without
+// --force (no certificate retry when nothing changed). Where SELinux
+// confines Caddy, it also gives Caddy /run/caddy for its admin socket.
+const UnitDropIn = "/etc/systemd/system/caddy.service.d/shiver-server-manager.conf"
+
+// DropInFor returns the drop-in for a unit as "systemctl cat caddy" shows
+// it, or nil when the unit already behaves like Caddy's own and needs no
+// runtime folder. Sections from dropIn itself are skipped, so the answer
+// doesn't depend on whether it's already there.
+func DropInFor(unit, dropIn, marker string, runtimeDir bool) []byte {
+	var start, reload string
+	ours := false
+	for _, l := range strings.Split(unit, "\n") {
+		l = strings.TrimSpace(l)
+		if p, ok := strings.CutPrefix(l, "# /"); ok {
+			ours = "/"+p == dropIn
+		}
+		if ours {
+			continue
+		}
+		if v, ok := strings.CutPrefix(l, "ExecStart="); ok && v != "" {
+			start = v
+		}
+		if v, ok := strings.CutPrefix(l, "ExecReload="); ok && v != "" {
+			reload = v
+		}
+	}
+	exec := start != "" && (strings.Contains(start, "--resume") || !strings.Contains(reload, "--force"))
+	if !exec && !runtimeDir {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString("# " + marker + "\n[Service]\n")
+	if exec {
+		b.WriteString("# Caddy starts from its Caddyfile, and a reload also retries certificates.\n" +
+			"ExecStart=\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\n" +
+			"ExecReload=\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n")
+	}
+	if runtimeDir {
+		b.WriteString("# The admin socket's folder: SELinux lets Caddy make sockets in /run, not in /var/lib/caddy.\n" +
+			"RuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\n")
+	}
+	return []byte(b.String())
+}
+
+// EnsureUnit writes, updates or removes the drop-in as the packaged unit
+// needs. changed means Caddy must restart to use it.
+func (c *Caddy) EnsureUnit(ctx context.Context, marker string, runtimeDir bool) (changed bool, err error) {
+	if c.DropIn == "" {
+		return false, nil
+	}
+	res, err := c.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"cat", "caddy"}})
+	if err != nil {
+		return false, err
+	}
+	want := DropInFor(string(res.Stdout), c.DropIn, marker, runtimeDir)
+	have, err := os.ReadFile(c.DropIn)
+	switch {
+	case err == nil && want != nil && bytes.Equal(have, want):
+		return false, nil
+	case want == nil && err != nil:
+		return false, nil
+	case want == nil:
+		if err := fsutil.RemoveIfExists(c.DropIn); err != nil {
+			return false, err
+		}
+	default:
+		if err := fsutil.MkdirAllMode(filepath.Dir(c.DropIn), 0o755); err != nil {
+			return false, err
+		}
+		if err := fsutil.WriteFileAtomic(c.DropIn, want, 0o644, nil); err != nil {
+			return false, err
+		}
+	}
+	_, err = c.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"daemon-reload"}})
+	return err == nil, err
 }
 
 // FilesMatch reports whether every file already holds the given content

@@ -15,6 +15,9 @@ const marker = "Managed by shiver-server-manager"
 
 func TestGolden(t *testing.T) {
 	testutil.Golden(t, "global.caddy", RenderGlobal(marker, Global{AdminSocket: true}))
+	if g := string(RenderGlobal(marker, Global{AdminSocket: true, NoRenewalRatio: true})); strings.Contains(g, "renewal_window_ratio") || !strings.Contains(g, "intermediate_lifetime 730d\n\t}\n}") {
+		t.Fatalf("for Caddy 2.10:\n%s", g)
+	}
 	testutil.Golden(t, "global-test-ca.caddy", RenderGlobal(marker, Global{Email: "admin@example.com", ACMECA: "https://localhost:14000/dir", ACMECARoot: "/etc/caddy/pebble.pem"}))
 	testutil.Golden(t, "site-letsencrypt.caddy", RenderSite(marker, Site{ID: "chat-a", Domain: "chat-a.example.com", Port: 5000}))
 	testutil.Golden(t, "site-staging.caddy", RenderSite(marker, Site{ID: "chat-a", Domain: "chat-a.example.com", Port: 5000, TestMode: true}))
@@ -132,5 +135,25 @@ func TestLastCertError(t *testing.T) {
 `
 	if got := lastCertError([]byte(journal), "chat-a.example.com"); got != "DNS problem: NXDOMAIN" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestDropInFor(t *testing.T) {
+	caddys := "[Service]\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n"
+	if d := DropInFor(caddys, UnitDropIn, "m", false); d != nil {
+		t.Fatalf("Caddy's own unit got a drop-in:\n%s", d)
+	}
+	suse := "[Service]\nExecStart=/usr/bin/caddy run --resume --environ --config /etc/caddy/Caddyfile\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile\n"
+	d := string(DropInFor(suse, UnitDropIn, "m", false))
+	if !strings.Contains(d, "ExecStart=\nExecStart=/usr/bin/caddy run --environ") || strings.Contains(d, "--resume") || !strings.Contains(d, "--force") {
+		t.Fatalf("openSUSE's unit:\n%s", d)
+	}
+	// With our drop-in already shown by systemctl cat, the answer is the same.
+	withOurs := suse + "\n# " + UnitDropIn + "\n" + d
+	if got := string(DropInFor(withOurs, UnitDropIn, "m", true)); !strings.Contains(got, "ExecStart=\nExecStart=") || !strings.Contains(got, "RuntimeDirectory=caddy\n") {
+		t.Fatalf("confined openSUSE's unit:\n%s", got)
+	}
+	if got := string(DropInFor(caddys, UnitDropIn, "m", true)); strings.Contains(got, "ExecStart") || !strings.Contains(got, "RuntimeDirectory=caddy") {
+		t.Fatalf("confined, Caddy's own unit:\n%s", got)
 	}
 }

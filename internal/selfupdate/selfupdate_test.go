@@ -148,12 +148,29 @@ func TestNewer(t *testing.T) {
 	}
 }
 
+func TestPackageName(t *testing.T) {
+	if got := PackageName("ssm", "0.2.0", "amd64", "deb"); got != "ssm_0.2.0_amd64.deb" {
+		t.Error(got)
+	}
+	if got := PackageName("ssm", "0.2.0", "arm64", "rpm"); got != "ssm-0.2.0-1.aarch64.rpm" {
+		t.Error(got)
+	}
+}
+
 func TestInstallArgs(t *testing.T) {
-	got := strings.Join(InstallArgs("u", "/x.deb", false), " ")
+	for manager, want := range map[string]string{
+		"dnf":    "/usr/bin/dnf install -y /x.rpm",
+		"zypper": "/usr/bin/zypper --non-interactive install --allow-unsigned-rpm /x.rpm",
+	} {
+		if got := strings.Join(InstallArgs("u", "/x.rpm", manager, true), " "); !strings.HasSuffix(got, "--wait --pipe "+want) {
+			t.Errorf("%s: %s", manager, got)
+		}
+	}
+	got := strings.Join(InstallArgs("u", "/x.deb", "apt", false), " ")
 	if !strings.HasPrefix(got, "systemd-run --unit=u --collect") || strings.Contains(got, "--wait") || !strings.HasSuffix(got, "--force-confold /x.deb") {
 		t.Fatal(got)
 	}
-	if !strings.Contains(strings.Join(InstallArgs("u", "/x.deb", true), " "), "--wait --pipe") {
+	if !strings.Contains(strings.Join(InstallArgs("u", "/x.deb", "apt", true), " "), "--wait --pipe") {
 		t.Fatal("no --wait")
 	}
 }

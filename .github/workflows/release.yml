@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v1.0.0 to publish .deb packages for amd64 and arm64.
+# Push a tag like v1.0.0 to publish .deb and .rpm packages for amd64 and arm64.
 on:
   push:
     tags: ["v*"]
@@ -16,12 +16,15 @@ jobs:
     strategy:
       matrix:
         include:
-          # Built on the oldest supported base (24.04), natively per
-          # architecture, since PAM needs cgo.
+          # Built natively per architecture, since PAM needs cgo, inside
+          # AlmaLinux 8 (packaging/build.sh) so the binary runs on every
+          # supported system's glibc.
           - runner: ubuntu-24.04
             arch: amd64
+            rpmarch: x86_64
           - runner: ubuntu-24.04-arm
             arch: arm64
+            rpmarch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
@@ -39,14 +42,18 @@ jobs:
       - name: Build
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" ./cmd/shiver-server-manager
+          go mod download
+          docker run --rm -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8 sh /src/packaging/build.sh "$VERSION"
+          ./shiver-server-manager version
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION
           mkdir -p dist
-          ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+          # Named as selfupdate.PackageName expects.
+          ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t "dist/shiver-server-manager_${VERSION}_${{ matrix.arch }}.deb"
+          ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p rpm -t "dist/shiver-server-manager-${VERSION}-1.${{ matrix.rpmarch }}.rpm"
       - uses: actions/upload-artifact@v5
         with:
-          name: deb-${{ matrix.arch }}
-          path: dist/*.deb
+          name: pkg-${{ matrix.arch }}
+          path: dist/*
 
   publish:
     needs: build
@@ -62,7 +69,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist
-          sha256sum *.deb > SHA256SUMS
+          sha256sum *.deb *.rpm > SHA256SUMS
           cat SHA256SUMS
           notes=$(awk -v v="## ${GITHUB_REF_NAME#v}" '$0 ~ "^## " {p = index($0, v) == 1; next} p' ../CHANGELOG.md)
-          gh release create "$GITHUB_REF_NAME" *.deb SHA256SUMS --title "$GITHUB_REF_NAME" --notes "${notes:-See CHANGELOG.md}"
+          gh release create "$GITHUB_REF_NAME" *.deb *.rpm SHA256SUMS --title "$GITHUB_REF_NAME" --notes "${notes:-See CHANGELOG.md}"

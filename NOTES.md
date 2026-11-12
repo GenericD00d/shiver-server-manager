@@ -29,6 +29,19 @@ Decisions made with the owner, places this build differs from `Implementation gu
 - **Security:** PAM login (a second hidden prompt becomes a code field), the same throttle and group check; in-memory sessions (HttpOnly, SameSite=Strict, Secure behind Caddy), 10-minute idle and 24-hour limits; password again for tokens, deletes, restores, vault changes and remove-everything; changes need an app header and same origin; unknown Host headers are refused (DNS rebinding); strict CSP. Secrets passed on stdin are blanked out of job output; the secret token is returned once and kept nowhere.
 - **Front end:** React 19, Vite, Tailwind 4, with components copied from Sharkord's `packages/ui` (MIT) and its theme tokens, following the guide's "a web interface should use Sharkord's own stack". The built files in `internal/web/dist` are committed (the binary embeds them) and rebuilt in CI and releases.
 
+## Other distributions (added 2026-11-12, at the owner's request)
+
+The guide targets Ubuntu. The manager now also runs on Debian 12 and 13, Fedora 43+, RHEL/AlmaLinux/Rocky 9 and 10, and openSUSE Tumbleweed and Leap 16 (`internal/distro`). Arch is left out: it no longer packages Caddy.
+
+- **One build:** binaries are built inside AlmaLinux 8 (glibc 2.28, older than any supported system's; `packaging/build.sh`), with `-D_GNU_SOURCE` for the PAM library's `RTLD_NEXT`. One `.deb` and one `.rpm` per architecture.
+- **Caddy:** Debian's, Ubuntu's, Fedora's and EPEL's own Caddy is too old; it comes from the Caddy project's apt repository or COPR (a `.repo` file written directly, no dnf plugin). openSUSE's own is used. The minimum is now 2.10.0 (Leap 16's, which CI runs); `renewal_window_ratio` is left out below 2.11, which doesn't know it.
+- **openSUSE's Caddy unit** starts with `--resume` and reloads without `--force`; a drop-in (`caddy.service.d/shiver-server-manager.conf`) makes it behave like Caddy's own.
+- **SELinux:** on Fedora and RHEL, Caddy from COPR and Sharkord run unconfined; nothing extra is needed (CI runs them enforcing). openSUSE Tumbleweed labels `/usr/bin/caddy` `httpd_exec_t`, so Caddy runs as `httpd_t`: it may not create its admin socket in `/var/lib/caddy` (`httpd_var_lib_t`) nor connect out. Where Caddy is labelled that way, the socket moves to `/run/caddy/admin.sock` (a `RuntimeDirectory` in the drop-in; httpd_t's sockets in /run get their own type) and setup switches on `httpd_can_network_connect`.
+- **PAM file:** the `.deb` ships it (`common-auth`); the `.rpm`'s postinst writes it for the system's stack (`password-auth` on Fedora/RHEL, `common-auth`/`common-account` on openSUSE) and removes it on erase.
+- **Firewall:** setup offers ufw on Debian and Ubuntu, firewalld elsewhere (SSH ports opened with `firewall-offline-cmd` before it starts).
+- **Self-update** picks the `.deb` or `.rpm` and runs apt, dnf or zypper (`--allow-unsigned-rpm`: the packages aren't signed; SHA256SUMS over HTTPS vouches for them).
+- **CI:** package installs on 12 distribution containers; the full end-to-end tests inside Debian 13, Fedora 44, AlmaLinux 9 and 10, openSUSE Tumbleweed and Leap 16 cloud images under KVM (`test/vm`), amd64 only. The browser tests (voice, web page) still run on Ubuntu only.
+
 ## Differences from the guide
 
 - **Port check:** the guide's test bind is used, not the checklist's `ss -lntu`.
@@ -55,7 +68,7 @@ Decisions made with the owner, places this build differs from `Implementation gu
 - **A second VM for the voice test:** CI runs the browsers on the same machine, so traffic doesn't cross a real firewall.
 - **Import from a running Docker container:** CI covers a plain data folder and exports; try `import docker:<name>` with the official image.
 - **Sharkord update and rollback:** only one Sharkord version is tested, so `instance update` and its rollback haven't run against two real versions.
-- **UPnP on a real home router, and firewalld:** covered by unit tests only.
+- **UPnP on a real home router:** covered by unit tests only. (firewalld is now covered by the Fedora, AlmaLinux and openSUSE VMs in CI.)
 - **Shiver's statuses and role colours in a browser:** CI checks the plugin loads and its client bundle is served.
 
 - **Interactive login on a real terminal:** CI checks logins through stdin only.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-11-12)
+
+- Runs on more Linux distributions: Debian 12 and 13, Fedora 43 and newer, RHEL, AlmaLinux and Rocky Linux 9 and 10, and openSUSE Tumbleweed and Leap 16, as well as Ubuntu 24.04 and 26.04 and Linux Mint 22. Each release has an `.rpm` beside the `.deb`. Setup installs packages with apt, dnf or zypper, gets Caddy from the Caddy project's own repository where the distribution's is too old (COPR on Fedora and RHEL), and offers firewalld rather than ufw outside Debian and Ubuntu. Self-update installs the right package the right way.
+- On openSUSE, a drop-in makes Caddy start from its Caddyfile (openSUSE's unit starts with `--resume`). Where SELinux confines Caddy (openSUSE Tumbleweed), its admin socket is in `/run/caddy` and setup lets Caddy connect to the servers (`httpd_can_network_connect`).
+- Caddy 2.10 is now enough (openSUSE Leap 16's).
+- Nothing changes on an existing Ubuntu or Mint server.
+- `instance logs` with an unknown server ID says so instead of crashing.
+
 ## 0.1.6 (2026-11-10)
 
 - Install any Sharkord plugin from a .zip or .tar (.tar.gz, .tar.zst) file: a server's menu > Install a plugin from a file on the web page (the file is uploaded), or `plugin install <id> <file>`. Like Shiver, the server is backed up first, the plugin is switched on, and the previous copy comes back if Sharkord can't load it. Files that can run (a bundled helper program) stay runnable. `plugin list` and Servers > Plugins show what each server has.

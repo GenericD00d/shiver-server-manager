@@ -10,10 +10,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
 )
 
 // httpsClient trusts roots (PEM) and sends every request to 127.0.0.1,
@@ -98,13 +99,17 @@ func TestE2EHTTPS(t *testing.T) {
 	})
 
 	t.Run("firewall", func(t *testing.T) {
-		out, _ := exec.Command("ufw", "status", "numbered").CombinedOutput()
-		for _, want := range []string{"40000/udp", "40000/tcp", "# sharkord:chat-a", "443/udp", "# sharkord:caddy", "# sharkord:ssh"} {
-			if !strings.Contains(string(out), want) {
+		name, out := firewallText(t)
+		wants := []string{"40000/udp", "40000/tcp", "# sharkord:chat-a", "443/udp", "# sharkord:caddy", "# sharkord:ssh"}
+		if name == "firewalld" {
+			wants = []string{"40000/udp", "40000/tcp", "sharkord-chat-a", "443/udp", "https", "http"}
+		}
+		for _, want := range wants {
+			if !strings.Contains(out, want) {
 				t.Fatalf("missing %q in:\n%s", want, out)
 			}
 		}
-		if strings.Contains(string(out), "5000/") {
+		if strings.Contains(out, "5000/") {
 			t.Fatal("the instance's HTTP port is open")
 		}
 		fw := e.stdout(t, "", "firewall", "status")
@@ -117,7 +122,7 @@ func TestE2EHTTPS(t *testing.T) {
 		if _, err := net.DialTimeout("tcp", "127.0.0.1:2019", time.Second); err == nil {
 			t.Fatal("Caddy's admin interface still listens on 127.0.0.1:2019")
 		}
-		fi, err := os.Stat("/var/lib/caddy/admin.sock")
+		fi, err := os.Stat(caddy.SocketPath(caddy.Confined()))
 		if err != nil || fi.Mode().Perm()&0o007 != 0 {
 			t.Fatalf("admin socket: %v %v", fi, err)
 		}
