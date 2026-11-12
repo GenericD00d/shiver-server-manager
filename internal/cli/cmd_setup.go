@@ -402,6 +402,18 @@ func (a *App) setupCaddy(ctx context.Context, s *ops.Sys, osInfo distro.OS) erro
 		return err
 	}
 	a.ok("Caddy configuration (admin interface on a socket only Caddy and root can use)")
+	if s.CaddyConfined() {
+		// SELinux's web server policy keeps Caddy from connecting out: to
+		// each server's port, and to Let's Encrypt.
+		changed, err := s.AllowCaddyNetwork(ctx)
+		if err != nil {
+			return fmt.Errorf("let Caddy connect to the servers (SELinux boolean httpd_can_network_connect): %w", err)
+		}
+		if changed {
+			a.log.Action("setsebool httpd_can_network_connect on", nil)
+		}
+		a.ok("SELinux lets Caddy connect to the servers (httpd_can_network_connect)")
+	}
 	return nil
 }
 

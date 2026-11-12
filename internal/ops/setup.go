@@ -24,6 +24,18 @@ import (
 // caddy.Confined); tests can't be.
 func (s *Sys) CaddyConfined() bool { return s.Caddy.DropIn != "" && caddy.Confined() }
 
+// AllowCaddyNetwork switches on the SELinux boolean that lets a confined
+// web server (Caddy, as openSUSE runs it) open network connections, for
+// reverse_proxy and ACME. It persists across reboots.
+func (s *Sys) AllowCaddyNetwork(ctx context.Context) (changed bool, err error) {
+	res, err := s.R.Run(ctx, run.Cmd{Name: "getsebool", Args: []string{"httpd_can_network_connect"}})
+	if err == nil && strings.HasSuffix(strings.TrimSpace(string(res.Stdout)), "--> on") {
+		return false, nil
+	}
+	_, err = s.R.Run(ctx, run.Cmd{Name: "setsebool", Args: []string{"-P", "httpd_can_network_connect", "on"}, Timeout: 5 * time.Minute})
+	return err == nil, err
+}
+
 // OS reads /etc/os-release.
 func OS() (distro.OS, error) { return distro.Read("/etc/os-release") }
 
