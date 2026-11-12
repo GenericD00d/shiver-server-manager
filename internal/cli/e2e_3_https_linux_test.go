@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/GenericD00d/shiver-server-manager/internal/caddy"
 )
 
 // httpsClient trusts roots (PEM) and sends every request to 127.0.0.1,
@@ -120,7 +122,7 @@ func TestE2EHTTPS(t *testing.T) {
 		if _, err := net.DialTimeout("tcp", "127.0.0.1:2019", time.Second); err == nil {
 			t.Fatal("Caddy's admin interface still listens on 127.0.0.1:2019")
 		}
-		fi, err := os.Stat("/var/lib/caddy/admin.sock")
+		fi, err := os.Stat(caddy.SocketPath(caddy.Confined()))
 		if err != nil || fi.Mode().Perm()&0o007 != 0 {
 			t.Fatalf("admin socket: %v %v", fi, err)
 		}

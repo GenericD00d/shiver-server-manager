@@ -151,6 +151,10 @@ func TestE2EEncryptedAndStorage(t *testing.T) {
 		}
 		// Put it back.
 		sh(t, "losetup "+loop+" /var/tmp/disk2.img && mount /srv/sharkord-disk2")
+		if _, err := os.Stat("/srv/sharkord-disk2/sharkord/" + enc + ".luks"); err != nil {
+			diag, _ := exec.Command("sh", "-c", "findmnt /srv/sharkord-disk2; ls -la /srv/sharkord-disk2 /srv/sharkord-disk2/sharkord; journalctl --no-pager -n 40").CombinedOutput()
+			t.Fatalf("the drive's container is missing after remounting it: %v\n%s", err, diag)
+		}
 		e.asAdmin(t, 0, e2ePass2+"\n", "vault", "unlock")
 		e.asAdmin(t, 0, "", "instance", "start", "chat-a")
 	})

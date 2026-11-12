@@ -20,6 +20,10 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/run"
 )
 
+// CaddyConfined reports whether SELinux confines Caddy (see
+// caddy.Confined); tests can't be.
+func (s *Sys) CaddyConfined() bool { return s.Caddy.DropIn != "" && caddy.Confined() }
+
 // OS reads /etc/os-release.
 func OS() (distro.OS, error) { return distro.Read("/etc/os-release") }
 
@@ -73,12 +77,15 @@ type CaddyPlan struct {
 // import lines.
 func (s *Sys) PlanCaddy(version [3]int) (CaddyPlan, error) {
 	c := s.Caddy
+	sock := caddy.SocketPath(s.CaddyConfined())
 	g := caddy.Global{AdminSocket: true, Email: s.St.Settings.Email, ACMECA: s.St.Settings.ACMECA, ACMECARoot: s.St.Settings.ACMECARoot,
-		NoRenewalRatio: version[0] == 2 && version[1] < 11}
+		NoRenewalRatio: version[0] == 2 && version[1] < 11, SocketPath: sock}
 	global := caddy.RenderGlobal(paths.Marker, g)
 	plan := CaddyPlan{Files: map[string][]byte{c.GlobalFile: global}}
 	old, _ := os.ReadFile(c.GlobalFile)
-	plan.Restart = !bytes.Contains(old, []byte("admin unix/"))
+	// A reload looks for the new socket before Caddy has opened it, so a
+	// move needs a restart.
+	plan.Restart = !bytes.Contains(old, []byte("admin unix/"+sock+"\n"))
 
 	main, err := os.ReadFile(c.Caddyfile)
 	switch {
@@ -105,7 +112,7 @@ func (s *Sys) ApplyCaddy(ctx context.Context, plan CaddyPlan) error {
 	if err := fsutil.MkdirAllMode(s.Caddy.SitesDir, 0o755); err != nil {
 		return err
 	}
-	if changed, err := s.Caddy.EnsureUnit(ctx, paths.Marker); err != nil {
+	if changed, err := s.Caddy.EnsureUnit(ctx, paths.Marker, s.CaddyConfined()); err != nil {
 		return err
 	} else if changed {
 		plan.Restart = true

@@ -14,7 +14,7 @@ case " $ID ${ID_LIKE:-} " in
     zypper -n -q install cryptsetup dosfstools rsync sudo e2fsprogs curl tar
     zypper -n install --allow-unsigned-rpm ./shiver-server-manager-*.rpm ;;
   *)
-    dnf -y -q install cryptsetup dosfstools rsync sudo e2fsprogs curl tar
+    dnf -y -q install cryptsetup dosfstools rsync sudo e2fsprogs curl tar firewalld
     dnf -y install ./shiver-server-manager-*.rpm ;;
 esac
 getent group shiver-admins

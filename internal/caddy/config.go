@@ -24,10 +24,25 @@ type Global struct {
 	// knows from 2.11 (openSUSE Leap 16 has 2.10). Caddy then renews the
 	// local intermediate certificate at its default point instead.
 	NoRenewalRatio bool
+	// SocketPath is the admin socket; empty means AdminSocketPath.
+	SocketPath string
 }
 
-// AdminSocketPath is where Caddy's admin interface listens.
-const AdminSocketPath = "/var/lib/caddy/admin.sock"
+// AdminSocketPath is where Caddy's admin interface listens, and
+// RunSocketPath where it listens when SELinux confines Caddy (openSUSE),
+// which only lets it create sockets under /run.
+const (
+	AdminSocketPath = "/var/lib/caddy/admin.sock"
+	RunSocketPath   = "/run/caddy/admin.sock"
+)
+
+// SocketPath is the admin socket for Caddy as this system runs it.
+func SocketPath(confined bool) string {
+	if confined {
+		return RunSocketPath
+	}
+	return AdminSocketPath
+}
 
 // RenderGlobal is /etc/caddy/<manager>/global.caddy, imported into the
 // Caddyfile's options block. The pki block names the self-signed root and
@@ -37,7 +52,11 @@ func RenderGlobal(marker string, g Global) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s. Do not edit.\n", marker)
 	if g.AdminSocket {
-		fmt.Fprintf(&b, "admin unix/%s\n", AdminSocketPath)
+		p := g.SocketPath
+		if p == "" {
+			p = AdminSocketPath
+		}
+		fmt.Fprintf(&b, "admin unix/%s\n", p)
 	}
 	if g.Email != "" {
 		fmt.Fprintf(&b, "email %s\n", g.Email)

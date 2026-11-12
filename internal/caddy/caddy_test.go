@@ -140,12 +140,20 @@ func TestLastCertError(t *testing.T) {
 
 func TestDropInFor(t *testing.T) {
 	caddys := "[Service]\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n"
-	if d := DropInFor(caddys, "m"); d != nil {
+	if d := DropInFor(caddys, UnitDropIn, "m", false); d != nil {
 		t.Fatalf("Caddy's own unit got a drop-in:\n%s", d)
 	}
 	suse := "[Service]\nExecStart=/usr/bin/caddy run --resume --environ --config /etc/caddy/Caddyfile\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile\n"
-	d := string(DropInFor(suse, "m"))
+	d := string(DropInFor(suse, UnitDropIn, "m", false))
 	if !strings.Contains(d, "ExecStart=\nExecStart=/usr/bin/caddy run --environ") || strings.Contains(d, "--resume") || !strings.Contains(d, "--force") {
 		t.Fatalf("openSUSE's unit:\n%s", d)
+	}
+	// With our drop-in already shown by systemctl cat, the answer is the same.
+	withOurs := suse + "\n# " + UnitDropIn + "\n" + d
+	if got := string(DropInFor(withOurs, UnitDropIn, "m", true)); !strings.Contains(got, "ExecStart=\nExecStart=") || !strings.Contains(got, "RuntimeDirectory=caddy\n") {
+		t.Fatalf("confined openSUSE's unit:\n%s", got)
+	}
+	if got := string(DropInFor(caddys, UnitDropIn, "m", true)); strings.Contains(got, "ExecStart") || !strings.Contains(got, "RuntimeDirectory=caddy") {
+		t.Fatalf("confined, Caddy's own unit:\n%s", got)
 	}
 }

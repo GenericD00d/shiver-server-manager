@@ -21,7 +21,7 @@ type Installer struct {
 	OS OS
 }
 
-const installTimeout = 10 * time.Minute
+const installTimeout = 20 * time.Minute
 
 var aptEnv = []string{"DEBIAN_FRONTEND=noninteractive"}
 

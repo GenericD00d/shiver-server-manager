@@ -175,19 +175,28 @@ func (c *Caddy) Apply(ctx context.Context, files map[string][]byte, restart bool
 	return c.Reload(ctx)
 }
 
-// UnitDropIn overrides how the packaged service starts and reloads Caddy
-// where it differs from Caddy's own: openSUSE's starts with --resume (the
-// last configuration set through the API wins over the Caddyfile after a
-// restart) and reloads without --force (no certificate retry when nothing
-// changed).
+// UnitDropIn adjusts the packaged service where it differs from Caddy's
+// own: openSUSE's starts with --resume (the last configuration set through
+// the API wins over the Caddyfile after a restart) and reloads without
+// --force (no certificate retry when nothing changed). Where SELinux
+// confines Caddy, it also gives Caddy /run/caddy for its admin socket.
 const UnitDropIn = "/etc/systemd/system/caddy.service.d/shiver-server-manager.conf"
 
 // DropInFor returns the drop-in for a unit as "systemctl cat caddy" shows
-// it, or nil when the unit already behaves like Caddy's own.
-func DropInFor(unit, marker string) []byte {
+// it, or nil when the unit already behaves like Caddy's own and needs no
+// runtime folder. Sections from dropIn itself are skipped, so the answer
+// doesn't depend on whether it's already there.
+func DropInFor(unit, dropIn, marker string, runtimeDir bool) []byte {
 	var start, reload string
+	ours := false
 	for _, l := range strings.Split(unit, "\n") {
 		l = strings.TrimSpace(l)
+		if p, ok := strings.CutPrefix(l, "# /"); ok {
+			ours = "/"+p == dropIn
+		}
+		if ours {
+			continue
+		}
 		if v, ok := strings.CutPrefix(l, "ExecStart="); ok && v != "" {
 			start = v
 		}
@@ -195,33 +204,52 @@ func DropInFor(unit, marker string) []byte {
 			reload = v
 		}
 	}
-	if start == "" || (!strings.Contains(start, "--resume") && strings.Contains(reload, "--force")) {
+	exec := start != "" && (strings.Contains(start, "--resume") || !strings.Contains(reload, "--force"))
+	if !exec && !runtimeDir {
 		return nil
 	}
-	return []byte("# " + marker + "\n# Caddy starts from its Caddyfile, and a reload also retries certificates.\n[Service]\n" +
-		"ExecStart=\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\n" +
-		"ExecReload=\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n")
+	var b strings.Builder
+	b.WriteString("# " + marker + "\n[Service]\n")
+	if exec {
+		b.WriteString("# Caddy starts from its Caddyfile, and a reload also retries certificates.\n" +
+			"ExecStart=\nExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\n" +
+			"ExecReload=\nExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force\n")
+	}
+	if runtimeDir {
+		b.WriteString("# The admin socket's folder: SELinux lets Caddy make sockets in /run, not in /var/lib/caddy.\n" +
+			"RuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\n")
+	}
+	return []byte(b.String())
 }
 
-// EnsureUnit writes the drop-in when the packaged unit needs one. changed
-// means Caddy must restart to use it.
-func (c *Caddy) EnsureUnit(ctx context.Context, marker string) (changed bool, err error) {
-	if c.DropIn == "" || fsutil.Exists(c.DropIn) {
+// EnsureUnit writes, updates or removes the drop-in as the packaged unit
+// needs. changed means Caddy must restart to use it.
+func (c *Caddy) EnsureUnit(ctx context.Context, marker string, runtimeDir bool) (changed bool, err error) {
+	if c.DropIn == "" {
 		return false, nil
 	}
 	res, err := c.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"cat", "caddy"}})
 	if err != nil {
 		return false, err
 	}
-	d := DropInFor(string(res.Stdout), marker)
-	if d == nil {
+	want := DropInFor(string(res.Stdout), c.DropIn, marker, runtimeDir)
+	have, err := os.ReadFile(c.DropIn)
+	switch {
+	case err == nil && want != nil && bytes.Equal(have, want):
 		return false, nil
-	}
-	if err := fsutil.MkdirAllMode(filepath.Dir(c.DropIn), 0o755); err != nil {
-		return false, err
-	}
-	if err := fsutil.WriteFileAtomic(c.DropIn, d, 0o644, nil); err != nil {
-		return false, err
+	case want == nil && err != nil:
+		return false, nil
+	case want == nil:
+		if err := fsutil.RemoveIfExists(c.DropIn); err != nil {
+			return false, err
+		}
+	default:
+		if err := fsutil.MkdirAllMode(filepath.Dir(c.DropIn), 0o755); err != nil {
+			return false, err
+		}
+		if err := fsutil.WriteFileAtomic(c.DropIn, want, 0o644, nil); err != nil {
+			return false, err
+		}
 	}
 	_, err = c.R.Run(ctx, run.Cmd{Name: "systemctl", Args: []string{"daemon-reload"}})
 	return err == nil, err
