@@ -11,6 +11,7 @@
 ### Changed
 
 - The docs follow the Shiver standard (`docs/standards.md`): AGENTS.md, ARCHITECTURE.md, SECURITY.md and RELEASING.md are new, `NOTES.md` is now `docs/decisions.md`, and the original guide and checklist moved to `docs/design/`. `scripts/check-docs.py` checks the structure in CI, and `scripts/check.sh` runs every local check.
+- `govulncheck` runs weekly as well as on every push, in its own workflow (`.github/workflows/audit.yml`), so a new Go advisory shows up even when nothing is pushed.
 
 ## 0.3.1 (2026-11-12)
 
