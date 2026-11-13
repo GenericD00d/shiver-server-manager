@@ -162,3 +162,7 @@ Restores and plugin installs unpacked as root into a staging folder the server's
 ### The web login confirmed passwords for accounts outside the admins group (fixed)
 
 PAM checks the password before the group, and the page named the group only when the password was right. It now gives one message for both, and logs the real reason. Found by the 2026-11-13 review.
+
+### Releases were built with a Go whose HTTP server could crash (fixed)
+
+Go 1.27.3's `net/http` has a race in `MaxBytesReader` that can crash an HTTP/1 server (GO-2026-6859), and the web page is one. The `govulncheck` step added on 2026-11-13 found it on its first run. `go.mod` now asks for Go 1.27.4, which every CI and release build reads.

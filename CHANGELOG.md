@@ -6,6 +6,7 @@
 
 - Restores, plugin installs and backups work in a server's data folder only through `os.Root`, which never follows a link out of it, and unpack into staging folders the server's own user can't write.
 - The web page gives the same answer for a wrong password and for a right password on an account outside `shiver-admins`.
+- Built with Go 1.27.4, which fixes a crash of the web page's HTTP server in Go 1.27.3 ([GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859)).
 
 ### Changed
 
