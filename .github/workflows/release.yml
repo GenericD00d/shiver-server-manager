@@ -53,7 +53,7 @@ jobs:
           # Named as selfupdate.PackageName expects.
           ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t "dist/shiver-server-manager_${VERSION}_${{ matrix.arch }}.deb"
           ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p rpm -t "dist/shiver-server-manager-${VERSION}-1.${{ matrix.rpmarch }}.rpm"
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pkg-${{ matrix.arch }}
           path: dist/*
