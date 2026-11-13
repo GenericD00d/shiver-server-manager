@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -64,6 +65,9 @@ func TestEveryGuideCommandExists(t *testing.T) {
 }
 
 func TestNonLinuxOrNonRootRefused(t *testing.T) {
+	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		t.Skip("running as root, so the command isn't refused")
+	}
 	code, _, errOut := execute("instance", "list")
 	if code != ExitError {
 		t.Fatalf("code %d (%s)", code, errOut)
