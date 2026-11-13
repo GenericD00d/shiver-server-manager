@@ -247,7 +247,9 @@ func newHarness(t *testing.T) *harness {
 			_, err := os.Lstat(p)
 			return 0, 0, err
 		},
-		Now: func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
+		// a roomy disk wherever the tests run, so the health check sees only what a test sets
+		DiskSpace: func(string) (uint64, uint64, error) { return 900 << 30, 1000 << 30, nil },
+		Now:       func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
 		AsInstance: func(ctx context.Context, uid, gid int, stdin string, args ...string) error {
 			return runSelfAsInProcess(stdin, args...)
 		},

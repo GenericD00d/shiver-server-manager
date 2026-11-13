@@ -174,3 +174,7 @@ PAM checks the password before the group, and the page named the group only when
 ### Releases were built with a Go whose HTTP server could crash (fixed)
 
 Go 1.27.3's `net/http` has a race in `MaxBytesReader` that can crash an HTTP/1 server (GO-2026-6859), and the web page is one. The `govulncheck` step added on 2026-11-13 found it on its first run. `go.mod` now asks for Go 1.27.4, which every CI and release build reads.
+
+### Two unit tests depended on where they ran (fixed)
+
+`TestNonLinuxOrNonRootRefused` expected a refusal that only happens when the tests aren't root, and `TestHealth` read the real free space, so both failed in a root container or on a nearly full disk. The first now skips as root; the health check reads space through `Sys.DiskSpace`, which the test harness sets to a roomy disk, and `TestHealth` checks the low-space warning with numbers of its own.
