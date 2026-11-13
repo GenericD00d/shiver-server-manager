@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The docs follow the Shiver standard (`docs/standards.md`): AGENTS.md, ARCHITECTURE.md, SECURITY.md and RELEASING.md are new, `NOTES.md` is now `docs/decisions.md`, and the original guide and checklist moved to `docs/design/`. `scripts/check-docs.py` checks the structure in CI, and `scripts/check.sh` runs every local check.
+
 ## 0.3.1 (2026-11-12)
 
 - The Shiver plugins page now shows one server at a time: pick it from the list at the top to see its plugins, with install and update buttons. A server with an update has an (i) in the list, and the "available" links on the Servers page open the page on that server.
