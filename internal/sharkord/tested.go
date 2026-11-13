@@ -16,14 +16,38 @@ type TestedVersion struct {
 	DBSwitches bool // the manager may switch plugins on in the database
 }
 
-// Tested lists every version the manager offers, oldest first. Recheck the
-// facts in "Prototype first" before adding one.
+// Tested lists the versions whose facts were checked by hand, oldest first.
+// It doesn't limit what the manager offers: that is every published Sharkord
+// release (Client.Releases). A version newer than the list gets the newest
+// entry's facts (FactsFor), so add one when a fact changes, or to mark a
+// version as checked. Recheck the facts in "Prototype first" when you do.
 var Tested = []TestedVersion{
 	{Version: "0.0.30", PluginSDK: 2, DBSwitches: true},
+	{Version: "0.0.31", PluginSDK: 2, DBSwitches: true},
 }
 
 // LatestTested is the newest version on the list.
 func LatestTested() TestedVersion { return Tested[len(Tested)-1] }
+
+// FactsFor returns what the manager assumes about version v: its own entry
+// when it was checked, otherwise that of the newest checked version older
+// than v (or the oldest entry, for a version older than all of them). A
+// wrong plugin SDK guess is caught: a plugin's manifest is checked against
+// it, Sharkord refuses a plugin built for another SDK, and an install that
+// doesn't load is rolled back.
+func FactsFor(v string) TestedVersion {
+	if t, ok := FindTested(v); ok {
+		return t
+	}
+	facts := Tested[0]
+	for _, t := range Tested {
+		if CompareVersions(t.Version, v) <= 0 {
+			facts = t
+		}
+	}
+	facts.Version = strings.TrimPrefix(v, "v")
+	return facts
+}
 
 // FindTested returns the entry for v, if tested.
 func FindTested(v string) (TestedVersion, bool) {

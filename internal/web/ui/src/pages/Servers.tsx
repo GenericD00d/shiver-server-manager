@@ -257,7 +257,7 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
         {item('Update Sharkord', {
           action: 'server.update',
           title: `Update ${s.id}`,
-          description: 'Backs up, switches to the newest tested version, and rolls back if it doesn’t start.',
+          description: 'Backs up, switches to the newest Sharkord release, and rolls back if it doesn’t start.',
           fields: [passphrase]
         })}
         <DropdownMenuSeparator />

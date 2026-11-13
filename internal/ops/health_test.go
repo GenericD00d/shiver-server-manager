@@ -66,6 +66,13 @@ func TestHealth(t *testing.T) {
 	if len(appeared) != 0 || !strings.Contains(keys(cleared), "down:chat-a") || !strings.Contains(keys(cleared), "site:chat-a") {
 		t.Fatalf("appeared %q cleared %q", keys(appeared), keys(cleared))
 	}
+
+	// A nearly full disk warns, whatever the disk the tests run on.
+	h.s.DiskSpace = func(string) (uint64, uint64, error) { return 5 << 30, 1000 << 30, nil }
+	rep, _, _ = h.s.Health(ctx, HealthOpts{})
+	if !strings.Contains(keys(rep.Notices), "disk:backups") {
+		t.Fatalf("no low-disk warning in %s", keys(rep.Notices))
+	}
 }
 
 type fakeRouter struct {

@@ -112,7 +112,10 @@ type Sys struct {
 	UserIDs     func(name string) (uid, gid int, err error)
 	Chown       func(path string, uid, gid int) error
 	OwnerOf     func(path string) (uid, gid int, err error)
-	Now         func() time.Time
+	// DiskSpace reads the free and total bytes at path; the health check's
+	// low-space warnings come from it, so a test can set the numbers.
+	DiskSpace func(path string) (free, total uint64, err error)
+	Now       func() time.Time
 }
 
 // New makes a Sys for the real system.
@@ -146,7 +149,15 @@ func New(r run.Runner, st *state.State, log *actionlog.Logger, userAgent string)
 		UserIDs:  osuser.IDs,
 		Chown:    os.Lchown,
 		OwnerOf:  fsutil.OwnerOf,
-		Now:      time.Now,
+		DiskSpace: func(path string) (uint64, uint64, error) {
+			free, err := fsutil.FreeBytes(path)
+			if err != nil {
+				return 0, 0, err
+			}
+			total, err := fsutil.TotalBytes(path)
+			return free, total, err
+		},
+		Now: time.Now,
 	}
 	s.EraseContainer = s.eraseContainer
 	s.Shiver = plugins.NewClient(userAgent, filepath.Join(p.CacheDir, "shiver-release.json"))

@@ -165,14 +165,12 @@ func (s *Sys) Health(ctx context.Context, o HealthOpts) (rep Report, appeared, c
 			add("error", "location:"+li.Path, "", "storage location %s: %s", li.Path, li.Problem)
 			continue
 		}
-		if total, err := fsutil.TotalBytes(li.Path); err == nil && total > 0 && li.FreeBytes*10 < total {
-			add("warning", "disk:"+li.Path, "", "less than 10%% free at %s (%s left)", li.Path, humanBytes(li.FreeBytes))
+		if free, total, err := s.DiskSpace(li.Path); err == nil && total > 0 && free*10 < total {
+			add("warning", "disk:"+li.Path, "", "less than 10%% free at %s (%s left)", li.Path, humanBytes(free))
 		}
 	}
-	if free, err := fsutil.FreeBytes(s.St.Settings.BackupLocation); err == nil {
-		if total, err := fsutil.TotalBytes(s.St.Settings.BackupLocation); err == nil && total > 0 && free*10 < total {
-			add("warning", "disk:backups", "", "less than 10%% free where backups go (%s)", s.St.Settings.BackupLocation)
-		}
+	if free, total, err := s.DiskSpace(s.St.Settings.BackupLocation); err == nil && total > 0 && free*10 < total {
+		add("warning", "disk:backups", "", "less than 10%% free where backups go (%s)", s.St.Settings.BackupLocation)
 	}
 
 	// The self-signed root.
@@ -187,11 +185,14 @@ func (s *Sys) Health(ctx context.Context, o HealthOpts) (rep Report, appeared, c
 			add("info", key, "", format, args...)
 		}
 	}
-	latest := sharkord.LatestTested().Version
-	for _, id := range s.IDs() {
-		inst := s.St.Instances[id]
-		if sharkord.CompareVersions(latest, inst.SharkordVersion) > 0 {
-			announce("sharkord-"+latest+":"+id, "Sharkord %s is out and tested; %s runs %s. Update with: instance update %s", latest, id, inst.SharkordVersion, id)
+	if o.Online {
+		if latest, err := s.Sharkord.Latest(ctx); err == nil {
+			for _, id := range s.IDs() {
+				inst := s.St.Instances[id]
+				if sharkord.CompareVersions(latest, inst.SharkordVersion) > 0 {
+					announce("sharkord-"+latest+":"+id, "Sharkord %s is out; %s runs %s. Update with: instance update %s", latest, id, inst.SharkordVersion, id)
+				}
+			}
 		}
 	}
 	if o.Online && s.Shiver != nil {

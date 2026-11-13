@@ -91,6 +91,14 @@ The guide targets Ubuntu. The manager now also runs on Debian 12 and 13, Fedora 
 
 **Consequences:** `backup.Read`, `backup.Write` and the plugin unpacker all go through a root on the folder they work in. Unpack staging folders stay root-owned (`stagingDir`); only the database copy's folder is the server user's (`vacuumDir`). `swapPlugin` walks and changes modes through a root, and refuses any link. Each has a test that plants a link and checks nothing outside is touched.
 
+## 2026-11-13: Offer every published Sharkord release, at the owner's request
+
+The manager offered only the versions in `internal/sharkord/tested.go`, so a new Sharkord release stayed hidden until a manager release added it. It now offers every published release (drafts and pre-releases left out), and creates, updates and imports with the newest by default. `tested.go` keeps the facts the manager relies on for the versions checked by hand; a newer release takes the newest entry's facts (`FactsFor`). A wrong guess is contained: plugin manifests are checked against the SDK, Sharkord refuses a plugin built for another, a plugin that doesn't load and an update that doesn't start both roll back, and every change is backed up first. The health check announces a new release when it runs online.
+
+## 2026-11-13: Verified against Sharkord v0.0.31 source
+
+Compared with v0.0.30: `PLUGIN_SDK_VERSION` is still 2; no database migrations, data paths, `/healthz`, token or first-start changes; the plugin log lines are the same; env names only gained `SHARKORD_WEBRTC_ANNOUNCED_ADDRESS_V6` and `SHARKORD_WEBRTC_INTERNAL_ANNOUNCED_ADDRESS`; the release assets are the same. New: plugins can be uploaded from Sharkord's own settings page (`POST /plugin-upload`), which the manager doesn't use.
+
 ## Open items
 
 - **Signed releases.** Packages, plugins and `plugins.json` are checked only against checksums from the same release. Signing them needs a minisign key that only the owner holds; see [RELEASING.md](../RELEASING.md#keys).
@@ -166,3 +174,7 @@ PAM checks the password before the group, and the page named the group only when
 ### Releases were built with a Go whose HTTP server could crash (fixed)
 
 Go 1.27.3's `net/http` has a race in `MaxBytesReader` that can crash an HTTP/1 server (GO-2026-6859), and the web page is one. The `govulncheck` step added on 2026-11-13 found it on its first run. `go.mod` now asks for Go 1.27.4, which every CI and release build reads.
+
+### Two unit tests depended on where they ran (fixed)
+
+`TestNonLinuxOrNonRootRefused` expected a refusal that only happens when the tests aren't root, and `TestHealth` read the real free space, so both failed in a root container or on a nearly full disk. The first now skips as root; the health check reads space through `Sys.DiskSpace`, which the test harness sets to a roomy disk, and `TestHealth` checks the low-space warning with numbers of its own.

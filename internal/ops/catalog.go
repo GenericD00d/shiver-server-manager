@@ -71,10 +71,7 @@ func (s *Sys) InstallFromCatalog(ctx context.Context, id, pluginID string) (plug
 	if err != nil {
 		return plugins.Manifest{}, "", err
 	}
-	tested, isTested := sharkord.FindTested(inst.SharkordVersion)
-	if !isTested {
-		return plugins.Manifest{}, "", fmt.Errorf("Sharkord %s isn't on the tested list, so its plugin SDK isn't known", inst.SharkordVersion)
-	}
+	tested := sharkord.FactsFor(inst.SharkordVersion)
 	cat, err := s.Catalog.Catalog(ctx)
 	if err != nil {
 		return plugins.Manifest{}, "", err

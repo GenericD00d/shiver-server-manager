@@ -113,6 +113,46 @@ func (c *Client) Releases(ctx context.Context) ([]Release, error) {
 	return out, nil
 }
 
+// Latest is the newest published release.
+func (c *Client) Latest(ctx context.Context) (string, error) {
+	rs, err := c.Releases(ctx)
+	if err != nil {
+		return "", err
+	}
+	latest := ""
+	for _, r := range rs {
+		if latest == "" || CompareVersions(r.Version, latest) > 0 {
+			latest = r.Version
+		}
+	}
+	if latest == "" {
+		return "", errors.New("Sharkord has no published releases")
+	}
+	return latest, nil
+}
+
+// Offered returns the version to install: v when it is a published release
+// (not a draft or pre-release), or the newest one when v is empty.
+func (c *Client) Offered(ctx context.Context, v string) (string, error) {
+	if v == "" {
+		return c.Latest(ctx)
+	}
+	v = strings.TrimPrefix(v, "v")
+	if err := ValidVersion(v); err != nil {
+		return "", err
+	}
+	rs, err := c.Releases(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range rs {
+		if r.Version == v {
+			return v, nil
+		}
+	}
+	return "", fmt.Errorf("Sharkord %s isn't a published release", v)
+}
+
 // AssetName is the Linux build for a Go architecture.
 func AssetName(goarch string) (string, error) {
 	switch goarch {

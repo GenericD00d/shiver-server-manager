@@ -21,9 +21,6 @@ func (s *Sys) NewToken(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := sharkord.FindTested(inst.SharkordVersion); !ok {
-		return fmt.Errorf("Sharkord %s isn't on the tested list, so the manager won't change its database", inst.SharkordVersion)
-	}
 	oldHash, err := sharkord.StoredTokenHash(inst.DataPath)
 	if err != nil {
 		return err

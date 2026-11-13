@@ -172,10 +172,16 @@ func newHarness(t *testing.T) *harness {
 	sum := sha256.Sum256(bin)
 	asset, _ := sharkord.AssetName(runtime.GOARCH)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/dl/v0.0.30/release.json", func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintf(w, `{"artifacts":[{"name":%q,"size":%d,"checksum":%q}]}`, asset, len(bin), hex.EncodeToString(sum[:]))
+	// Sharkord's published releases: 0.0.30 is the newest; 0.0.99 is a pre-release
+	mux.HandleFunc("/api/releases", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[{"tag_name":"v0.0.99","prerelease":true},{"tag_name":"v0.0.30"},{"tag_name":"v0.0.29"}]`)
 	})
-	mux.HandleFunc("/dl/v0.0.30/"+asset, func(w http.ResponseWriter, _ *http.Request) { w.Write(bin) })
+	for _, v := range []string{"0.0.29", "0.0.30"} {
+		mux.HandleFunc("/dl/v"+v+"/release.json", func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, `{"artifacts":[{"name":%q,"size":%d,"checksum":%q}]}`, asset, len(bin), hex.EncodeToString(sum[:]))
+		})
+		mux.HandleFunc("/dl/v"+v+"/"+asset, func(w http.ResponseWriter, _ *http.Request) { w.Write(bin) })
+	}
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -204,6 +210,7 @@ func newHarness(t *testing.T) *harness {
 		DataDir: filepath.Join(root, "caddydata")}
 	client := sharkord.NewClient("test", "")
 	client.DownloadBase = srv.URL + "/dl"
+	client.APIBase = srv.URL + "/api"
 	h.s = &Sys{
 		Paths: p, R: h.fake, St: st, Vault: v, Systemd: systemd.Systemd{R: h.fake}, Sharkord: client,
 		Caddy: cad, FirewallFor: func(string) firewall.Firewall { return fw }, LUKS: luks.LUKS{R: h.fake},
@@ -240,7 +247,9 @@ func newHarness(t *testing.T) *harness {
 			_, err := os.Lstat(p)
 			return 0, 0, err
 		},
-		Now: func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
+		// a roomy disk wherever the tests run, so the health check sees only what a test sets
+		DiskSpace: func(string) (uint64, uint64, error) { return 900 << 30, 1000 << 30, nil },
+		Now:       func() time.Time { return time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC) },
 		AsInstance: func(ctx context.Context, uid, gid int, stdin string, args ...string) error {
 			return runSelfAsInProcess(stdin, args...)
 		},
