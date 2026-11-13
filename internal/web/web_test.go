@@ -136,11 +136,14 @@ func TestLogin(t *testing.T) {
 	if resp, _ := h.do(t, "GET", "/api/me", nil, nil); resp.StatusCode != 401 {
 		t.Fatalf("me without login: %d", resp.StatusCode)
 	}
-	if resp, _ := h.do(t, "POST", "/api/login", map[string]string{"username": "alice", "password": "wrong"}, nil); resp.StatusCode != 401 {
+	resp, wrong := h.do(t, "POST", "/api/login", map[string]string{"username": "alice", "password": "wrong"}, nil)
+	if resp.StatusCode != 401 {
 		t.Fatal("wrong password accepted")
 	}
-	if resp, out := h.do(t, "POST", "/api/login", map[string]string{"username": "bob", "password": "right"}, nil); resp.StatusCode != 401 || !strings.Contains(out["error"].(string), "group") {
-		t.Fatalf("outsider: %d %v", resp.StatusCode, out)
+	// An account outside the admins group, with its right password, gets the same answer as a
+	// wrong password: the page must not confirm passwords for the machine's other accounts.
+	if resp, out := h.do(t, "POST", "/api/login", map[string]string{"username": "bob", "password": "right"}, nil); resp.StatusCode != 401 || out["error"] != wrong["error"] || strings.Contains(out["error"].(string), "group") {
+		t.Fatalf("outsider: %d %v, wrong password: %v", resp.StatusCode, out, wrong)
 	}
 	h.login(t)
 	resp, out := h.do(t, "GET", "/api/me", nil, nil)

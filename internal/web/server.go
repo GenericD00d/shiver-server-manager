@@ -200,10 +200,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"needCode": true, "prompt": p.asked})
 		return
 	case err != nil:
+		// The real reason goes to the log only. PAM checks the password before the group, so
+		// saying "not an admin" would tell anyone who can reach this page that they had the
+		// right password for one of the machine's other accounts (TestLogin).
 		s.logAs(body.Username, "web login", err)
 		var thr *auth.ThrottledError
 		msg := "wrong username or password"
-		if errors.As(err, &thr) || errors.Is(err, auth.ErrNotAdmin) {
+		if errors.As(err, &thr) {
 			msg = err.Error()
 		}
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": msg})
