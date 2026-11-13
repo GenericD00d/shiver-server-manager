@@ -85,6 +85,12 @@ The guide targets Ubuntu. The manager now also runs on Debian 12 and 13, Fedora 
 
 **Consequences:** every action is pinned to a commit SHA, `almalinux:8` (the release build image) by digest, and the browser tests install from a lockfile. Dependabot proposes action updates monthly. The test images stay unpinned, with a comment in `ci.yml` saying why.
 
+## 2026-11-13: Root works in a server's data folder only through os.Root
+
+**Why:** the data folder belongs to the server's own user, so a path root builds into it can't be trusted to stay inside it. Stopping the server first narrows the window but doesn't close it; `os.Root`, which never follows a link out of its folder, does.
+
+**Consequences:** `backup.Read`, `backup.Write` and the plugin unpacker all go through a root on the folder they work in. Unpack staging folders stay root-owned (`stagingDir`); only the database copy's folder is the server user's (`vacuumDir`). `swapPlugin` walks and changes modes through a root, and refuses any link. Each has a test that plants a link and checks nothing outside is touched.
+
 ## Open items
 
 - **Signed releases.** Packages, plugins and `plugins.json` are checked only against checksums from the same release. Signing them needs a minisign key that only the owner holds; see [RELEASING.md](../RELEASING.md#keys).
@@ -148,3 +154,11 @@ In the tests only: Sharkord marks channel rows aria-disabled when a member can't
 ### Hidden commands reachable through sudo (fixed)
 
 `internal-vacuum` and `internal-enable-plugins` skipped the login and took any paths, and the sudoers rule lets admins run the binary as root with any arguments, so they were a way past the login. They now refuse root (`refuseRoot` in `internal/cli/cli.go`); the manager only starts them as a server's own user. Any future hidden command needs the same check.
+
+### Root could be led outside a server's data folder (fixed)
+
+Restores and plugin installs unpacked as root into a staging folder the server's own user could change, and backups read that folder by path. All three now go through `os.Root`, and the staging folders stay root's. Found by the 2026-11-13 review.
+
+### The web login confirmed passwords for accounts outside the admins group (fixed)
+
+PAM checks the password before the group, and the page named the group only when the password was right. It now gives one message for both, and logs the real reason. Found by the 2026-11-13 review.

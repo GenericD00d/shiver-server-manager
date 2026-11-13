@@ -164,17 +164,75 @@ func FuzzSafeTarget(f *testing.F) {
 	for _, s := range []string{"data/a", "data/../x", "db.sqlite", "data/uploads/../../../etc"} {
 		f.Add(s)
 	}
-	dest := filepath.FromSlash("/dest")
 	f.Fuzz(func(t *testing.T, name string) {
-		got, err := safeTarget(dest, &tar.Header{Name: name, Typeflag: tar.TypeReg})
+		got, err := safeTarget(&tar.Header{Name: name, Typeflag: tar.TypeReg})
 		if err != nil || got == "" {
 			return
 		}
-		rel, rerr := filepath.Rel(dest, got)
-		if rerr != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
-			t.Fatalf("%q escapes to %q", name, got)
+		if !filepath.IsLocal(filepath.FromSlash(got)) {
+			t.Fatalf("%q maps to %q, which escapes the destination", name, got)
 		}
 	})
+}
+
+// The staging folder sits in a folder the instance's own user owns, so that
+// user can plant a symlink in it before root unpacks a restore. A write
+// through one must stay inside the destination rather than follow it out.
+func TestReadDoesNotFollowSymlinksInDest(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink ownership attack is a Unix concern")
+	}
+	outside := t.TempDir()
+	dest := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(dest, "uploads")); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := age.GenerateX25519Identity()
+	archive := evil(t, id, &tar.Header{Name: "data/uploads/escaped.conf", Size: 4, Typeflag: tar.TypeReg, Mode: 0o600})
+	if _, err := Read(bytes.NewReader(archive), ReadOpts{Identity: id, Dest: dest}); err == nil {
+		t.Fatal("read followed a planted symlink out of the destination")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "escaped.conf")); err == nil {
+		t.Fatal("a restored file was written outside the destination")
+	}
+}
+
+// A backup walks a folder the instance's own user owns, as root. A symlink
+// there must not pull a file from outside the folder into the archive.
+func TestWriteDoesNotFollowSymlinksOutOfData(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink ownership attack is a Unix concern")
+	}
+	data, dbCopy := makeData(t)
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret"), []byte("root only"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret"), filepath.Join(data, "uploads", "linked")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(data, "linkdir")); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := age.GenerateX25519Identity()
+	var buf bytes.Buffer
+	var notes []string
+	if err := Write(&buf, WriteOpts{Manifest: Manifest{Format: FormatVersion, Kind: "backup"}, DataPath: data, DBCopy: dbCopy,
+		Recipient: id.Recipient(), Note: func(n string) { notes = append(notes, n) }}); err != nil {
+		t.Fatal(err)
+	}
+	dest := t.TempDir()
+	if _, err := Read(bytes.NewReader(buf.Bytes()), ReadOpts{Identity: id, Dest: dest}); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"uploads/linked", "linkdir/secret", "linkdir"} {
+		if _, err := os.Lstat(filepath.Join(dest, filepath.FromSlash(p))); err == nil {
+			t.Errorf("%s was archived", p)
+		}
+	}
+	if len(notes) != 2 {
+		t.Errorf("want two left-out notes, got %q", notes)
+	}
 }
 
 func TestRecordKeepsN(t *testing.T) {

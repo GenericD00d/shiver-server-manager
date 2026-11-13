@@ -179,9 +179,23 @@ func (s *Sys) swapPlugin(ctx context.Context, id string, inst *state.Instance, t
 	if err := os.Rename(root, target); err != nil {
 		return "", err
 	}
-	if err := filepath.WalkDir(target, func(p string, d fs.DirEntry, err error) error {
+	// The plugins folder belongs to the instance's user, so the walk and every
+	// chmod go through a root on the data folder, which never follows a link
+	// out of it. The plugin was unpacked without links, so a link here means
+	// the folder changed underneath: refuse it rather than act through it.
+	// The server is stopped, and s.Chown is Lchown, so ownership changes only
+	// ever touch the entries themselves.
+	data, err := os.OpenRoot(inst.DataPath)
+	if err != nil {
+		return "", err
+	}
+	defer data.Close()
+	if err := fs.WalkDir(data.FS(), "plugins/"+m.ID, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.Type()&fs.ModeSymlink != 0 {
+			return fmt.Errorf("%s is a link, which the plugin archive didn't hold", p)
 		}
 		// Owner only, keeping whether a file can run.
 		mode := os.FileMode(0o600)
@@ -190,10 +204,11 @@ func (s *Sys) swapPlugin(ctx context.Context, id string, inst *state.Instance, t
 		} else if fi, err := d.Info(); err == nil && fi.Mode()&0o111 != 0 {
 			mode = 0o700
 		}
-		if err := os.Chmod(p, mode); err != nil {
+		name := filepath.FromSlash(p)
+		if err := data.Chmod(name, mode); err != nil {
 			return err
 		}
-		return s.Chown(p, uid, gid)
+		return s.Chown(filepath.Join(inst.DataPath, name), uid, gid)
 	}); err != nil {
 		return "", err
 	}

@@ -38,7 +38,7 @@ enforce each line, and their tests, are in [AGENTS.md](AGENTS.md#rules-that-must
 | Untrusted | Where it comes in | What guards it |
 |---|---|---|
 | Anyone with a shell as a `shiver-admins` member, without that member's password | `sudo shiver-server-manager`, which the sudoers rule allows with any arguments and no sudo password | The manager's own PAM login for every command except `version`, `help` and `completion`; hidden `internal-*` commands refuse root; a dropped environment; no start if the manager's files are writable by anyone but root |
-| A server's own process, and anything else running as `sharkord-<id>`, such as a plugin | That server's data folder, which the manager reads and writes as root | The unit's hardening (`packaging/sharkord@.service`); root stops the server before writing into its data folder, and writes through `os.Root`, which never follows a link out of the folder |
+| A server's own process, and anything else running as `sharkord-<id>`, such as a plugin | That server's data folder, which the manager reads and writes as root | The unit's hardening (`packaging/sharkord@.service`); root reads and writes that folder only through `os.Root`, which never follows a link out of it, and unpacks into staging folders the server's user can't write |
 | Browsers reaching the web page | `127.0.0.1:8443`, or an admin domain through Caddy | PAM login and group check, the login throttle, sessions with idle and absolute limits, a Host allow-list, same-origin plus the app's header on every change, a strict CSP, the password again for destructive actions, and fixed commands per action |
 | Downloads: Sharkord, the manager's own packages, the plugins, `plugins.json` | GitHub, over HTTPS | SHA-256 checksums from the same release. These catch a damaged download, not a compromised account; see [Design decisions](#design-decisions-worth-knowing) |
 | Archives an admin restores or imports, and plugin archives | Files the admin names | Plain files and folders only, relative paths, size caps, `O_EXCL` |
@@ -79,9 +79,10 @@ enforce each line, and their tests, are in [AGENTS.md](AGENTS.md#rules-that-must
 - **Each server is isolated** by its own system user and the unit's hardening: `NoNewPrivileges`,
   `ProtectSystem=strict` with only its data folder writable, `ProtectHome`, `PrivateTmp`,
   `PrivateDevices`, an empty capability set, and restricted address families and namespaces.
-- **Root writes into a server's data folder only while that server is stopped**, and only through
-  `os.Root`. That folder belongs to the server's user, who could otherwise swap in links between one
-  write and the next.
+- **Root works in a server's data folder only through `os.Root`.** That folder belongs to the
+  server's user, so every backup read, restore write and plugin install goes through a root on it,
+  which never follows a link out of it. Restores and plugins are unpacked into staging folders that
+  stay root's until their contents are in place, and a plugin is swapped in with the server stopped.
 - **The manager writes Sharkord's database only to switch plugins on**, and does it as the server's
   own user, through `internal-enable-plugins`.
 - **Downloads are checked against checksums published in the same release.** That proves a

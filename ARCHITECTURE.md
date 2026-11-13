@@ -124,19 +124,22 @@ resumed.
 ### Backups and restores
 
 - **A backup** copies the database first, with `VACUUM INTO` run as the server's own user
-  (`internal-vacuum`). It then streams tar into zstd into age, to the backup location, and records
-  the archive in the index.
-- **A restore** stops the server, then unpacks the archive into a staging folder inside the data
-  folder, writing only through an `os.Root` on that folder. It gives the files to the server's user,
-  swaps the folders with renames, starts the server, and swaps back if it doesn't answer.
+  (`internal-vacuum`, into the one staging folder that user may write: `vacuumDir`). It then reads
+  the data folder through an `os.Root`, streams tar into zstd into age to the backup location, and
+  records the archive in the index.
+- **A restore** unpacks the archive into a root-owned staging folder inside the data folder
+  (`stagingDir`), writing only through an `os.Root`, and gives each file to the server's user as it
+  goes. It then stops the server, swaps the folders with renames, starts the server, and swaps back
+  if it doesn't answer.
 
 ### Installing a plugin
 
 1. The release is found from `plugins.json`, or from Shiver's latest release for the companion
    plugin. The archive is downloaded and checked against its release's checksums.
-2. The server is backed up and stopped. The archive is then unpacked into a staging folder through
-   an `os.Root`, and its manifest checked against the tested plugin SDK.
-3. The plugin folder is swapped in and given to the server's user. On a first install, plugins are
+2. The archive is unpacked into a root-owned staging folder through an `os.Root`, and its manifest
+   checked against the tested plugin SDK.
+3. The server is backed up and stopped. The plugin folder is swapped in and given to the server's
+   user, walking it through an `os.Root` and refusing any link. On a first install, plugins are
    switched on in Sharkord's database, as the server's own user (`internal-enable-plugins`).
 4. The server is started. If Sharkord doesn't log the plugin as loaded, the old copy goes back.
 

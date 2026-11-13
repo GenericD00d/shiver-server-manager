@@ -95,21 +95,34 @@ func Write(w io.Writer, o WriteOpts) error {
 	if _, err := tw.Write(mb); err != nil {
 		return err
 	}
-	if err := addFile(tw, o.DBCopy, "db.sqlite"); err != nil {
+	// The database copy is written by the instance's own user (internal-vacuum)
+	// into a folder that user owns, so it's opened through a root on that folder:
+	// swapped for a link to a root-only file, it is refused rather than read.
+	dbRoot, err := os.OpenRoot(filepath.Dir(o.DBCopy))
+	if err != nil {
 		return fmt.Errorf("add the database: %w", err)
 	}
-	err = filepath.WalkDir(o.DataPath, func(p string, d fs.DirEntry, err error) error {
+	defer dbRoot.Close()
+	if err := addFile(tw, dbRoot, filepath.Base(o.DBCopy), "db.sqlite"); err != nil {
+		return fmt.Errorf("add the database: %w", err)
+	}
+	// Root walks a folder the instance's own user owns, so the walk and every
+	// open go through a root on it, which never follows a link out of it.
+	data, err := os.OpenRoot(o.DataPath)
+	if err != nil {
+		return err
+	}
+	defer data.Close()
+	err = fs.WalkDir(data.FS(), ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(o.DataPath, p)
-		rel = filepath.ToSlash(rel)
 		if rel == "." {
 			return nil
 		}
 		if skip(rel) {
 			if d.IsDir() {
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
@@ -117,7 +130,7 @@ func Write(w io.Writer, o WriteOpts) error {
 		case d.IsDir():
 			return tw.WriteHeader(&tar.Header{Name: "data/" + rel + "/", Mode: 0o700, ModTime: now, Typeflag: tar.TypeDir})
 		case d.Type().IsRegular():
-			return addFile(tw, p, "data/"+rel)
+			return addFile(tw, data, filepath.FromSlash(rel), "data/"+rel)
 		default:
 			if o.Note != nil {
 				o.Note("left out " + rel + " (not a plain file)")
@@ -137,30 +150,34 @@ func Write(w io.Writer, o WriteOpts) error {
 	return enc.Close()
 }
 
-func addFile(tw *tar.Writer, src, name string) error {
-	// O_NOFOLLOW-equivalent: Lstat first, refuse anything but a plain file.
-	fi, err := os.Lstat(src)
-	if err != nil {
-		return err
-	}
-	if !fi.Mode().IsRegular() {
-		return fmt.Errorf("%s isn't a plain file", src)
-	}
-	f, err := os.Open(src)
+// addFile archives the plain file name, opened through root so that a link
+// cannot lead outside it. The type is checked on the opened file, not before:
+// between the walk and the open, the instance's user could swap the file for
+// a link or a pipe. readFlags opens without blocking, so a pipe swapped in
+// can't hang the backup while it holds the manager's lock.
+func addFile(tw *tar.Writer, root *os.Root, name, archiveName string) error {
+	f, err := root.OpenFile(name, readFlags, 0)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s isn't a plain file", name)
+	}
 	mode := int64(0o600)
 	if fi.Mode()&0o111 != 0 { // a program, such as a plugin's yt-dlp
 		mode = 0o700
 	}
-	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: fi.Size(), ModTime: fi.ModTime(), Typeflag: tar.TypeReg}); err != nil {
+	if err := tw.WriteHeader(&tar.Header{Name: archiveName, Mode: mode, Size: fi.Size(), ModTime: fi.ModTime(), Typeflag: tar.TypeReg}); err != nil {
 		return err
 	}
 	n, err := io.Copy(tw, f)
 	if err == nil && n != fi.Size() {
-		err = fmt.Errorf("%s changed size while being archived", src)
+		err = fmt.Errorf("%s changed size while being archived", name)
 	}
 	return err
 }
@@ -209,6 +226,14 @@ type ReadOpts struct {
 // Read decrypts and unpacks an archive into o.Dest, returning its manifest.
 // Only plain files and folders with relative paths are accepted: no "..",
 // no links, no devices.
+//
+// Every write goes through an os.Root anchored at o.Dest, which resolves each
+// path beneath it and refuses to follow a symlink out of it. o.Dest sits in
+// a folder the instance's own user owns, so without this a symlink that user
+// planted would make root, which does the unpacking, write outside the
+// folder. o.Dest is also kept root-owned during the unpack (ops.stagingDir),
+// so nothing can be planted mid-unpack, and o.Chown can't be aimed at a file
+// that has since been swapped for a link. TestReadDoesNotFollowSymlinksInDest.
 func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 	var m Manifest
 	dec, err := age.Decrypt(r, o.Identity)
@@ -224,6 +249,17 @@ func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 		return m, err
 	}
 	defer zr.Close()
+	root, err := os.OpenRoot(o.Dest)
+	if err != nil {
+		return m, err
+	}
+	defer root.Close()
+	chown := func(rel string) error {
+		if o.Chown == nil {
+			return nil
+		}
+		return o.Chown(filepath.Join(o.Dest, filepath.FromSlash(rel)))
+	}
 	tr := tar.NewReader(zr)
 	sawManifest := false
 	for {
@@ -234,10 +270,11 @@ func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 		if err != nil {
 			return m, fmt.Errorf("damaged archive: %w", err)
 		}
-		target, err := safeTarget(o.Dest, h)
+		rel, err := safeTarget(h)
 		if err != nil {
 			return m, err
 		}
+		target := filepath.FromSlash(rel)
 		switch {
 		case h.Name == "manifest.json":
 			b, err := io.ReadAll(io.LimitReader(tr, 1<<20))
@@ -252,23 +289,23 @@ func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 			}
 			sawManifest = true
 		case h.Typeflag == tar.TypeDir:
-			if err := os.MkdirAll(target, 0o700); err != nil {
+			if err := root.MkdirAll(target, 0o700); err != nil {
 				return m, err
 			}
-			if o.Chown != nil {
-				if err := o.Chown(target); err != nil {
-					return m, err
-				}
+			if err := chown(rel); err != nil {
+				return m, err
 			}
 		case h.Typeflag == tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-				return m, err
+			if dir := filepath.FromSlash(path.Dir(rel)); dir != "." {
+				if err := root.MkdirAll(dir, 0o700); err != nil {
+					return m, err
+				}
 			}
 			perm := os.FileMode(0o600)
 			if h.Mode&0o111 != 0 {
 				perm = 0o700
 			}
-			f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+			f, err := root.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
 			if err != nil {
 				return m, err
 			}
@@ -279,10 +316,8 @@ func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 			if err := f.Close(); err != nil {
 				return m, err
 			}
-			if o.Chown != nil {
-				if err := o.Chown(target); err != nil {
-					return m, err
-				}
+			if err := chown(rel); err != nil {
+				return m, err
 			}
 		}
 	}
@@ -292,8 +327,10 @@ func Read(r io.Reader, o ReadOpts) (Manifest, error) {
 	return m, nil
 }
 
-// safeTarget maps an archive entry into dest, refusing anything unsafe.
-func safeTarget(dest string, h *tar.Header) (string, error) {
+// safeTarget maps an archive entry to a path within the destination root,
+// refusing anything unsafe. The returned path is slash-separated and
+// relative; "" means the entry (the manifest) is read rather than written.
+func safeTarget(h *tar.Header) (string, error) {
 	switch h.Typeflag {
 	case tar.TypeReg, tar.TypeDir:
 	default:
@@ -311,13 +348,13 @@ func safeTarget(dest string, h *tar.Header) (string, error) {
 	case clean == "manifest.json":
 		return "", nil
 	case clean == "db.sqlite":
-		return filepath.Join(dest, "db.sqlite"), nil
+		return "db.sqlite", nil
 	case strings.HasPrefix(clean, "data/") && clean != "data/":
 		rel := strings.TrimPrefix(clean, "data/")
 		if skip(rel) {
 			return "", fmt.Errorf("unexpected %q in the archive", name)
 		}
-		return filepath.Join(dest, filepath.FromSlash(rel)), nil
+		return rel, nil
 	}
 	return "", fmt.Errorf("unexpected %q in the archive", name)
 }

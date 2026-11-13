@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Security
+
+- Restores, plugin installs and backups work in a server's data folder only through `os.Root`, which never follows a link out of it, and unpack into staging folders the server's own user can't write.
+- The web page gives the same answer for a wrong password and for a right password on an account outside `shiver-admins`.
+
 ### Changed
 
 - The docs follow the Shiver standard (`docs/standards.md`): AGENTS.md, ARCHITECTURE.md, SECURITY.md and RELEASING.md are new, `NOTES.md` is now `docs/decisions.md`, and the original guide and checklist moved to `docs/design/`. `scripts/check-docs.py` checks the structure in CI, and `scripts/check.sh` runs every local check.
