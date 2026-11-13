@@ -187,11 +187,14 @@ func (s *Sys) Health(ctx context.Context, o HealthOpts) (rep Report, appeared, c
 			add("info", key, "", format, args...)
 		}
 	}
-	latest := sharkord.LatestTested().Version
-	for _, id := range s.IDs() {
-		inst := s.St.Instances[id]
-		if sharkord.CompareVersions(latest, inst.SharkordVersion) > 0 {
-			announce("sharkord-"+latest+":"+id, "Sharkord %s is out and tested; %s runs %s. Update with: instance update %s", latest, id, inst.SharkordVersion, id)
+	if o.Online {
+		if latest, err := s.Sharkord.Latest(ctx); err == nil {
+			for _, id := range s.IDs() {
+				inst := s.St.Instances[id]
+				if sharkord.CompareVersions(latest, inst.SharkordVersion) > 0 {
+					announce("sharkord-"+latest+":"+id, "Sharkord %s is out; %s runs %s. Update with: instance update %s", latest, id, inst.SharkordVersion, id)
+				}
+			}
 		}
 	}
 	if o.Online && s.Shiver != nil {

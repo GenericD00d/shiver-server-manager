@@ -83,9 +83,12 @@ func (s *Sys) PlanImport(ctx context.Context, src ImportSource) (ImportPlan, err
 	default:
 		return p, errors.New("nothing to import from")
 	}
-	latest := sharkord.LatestTested().Version
+	latest, err := s.Sharkord.Latest(ctx)
+	if err != nil {
+		return p, err
+	}
 	if p.DataVersion != "" && sharkord.CompareVersions(p.DataVersion, latest) > 0 {
-		return p, fmt.Errorf("the data was last run by Sharkord %s, newer than any version the manager offers (%s); an older Sharkord can't open its database", p.DataVersion, latest)
+		return p, fmt.Errorf("the data was last run by Sharkord %s, newer than any published release (%s); an older Sharkord can't open its database", p.DataVersion, latest)
 	}
 	p.RunVersion = latest
 	return p, nil
@@ -146,7 +149,7 @@ func (s *Sys) Import(ctx context.Context, r ImportRequest, hooks ImportHooks) er
 	if r.TLS == "" && r.Plan.Manifest != nil {
 		r.TLS = state.TLS(r.Plan.Manifest.Instance.TLS)
 	}
-	if err := s.CheckCreate(&r.CreateRequest); err != nil {
+	if err := s.CheckCreate(ctx, &r.CreateRequest); err != nil {
 		return err
 	}
 	if s.St.Settings.PublicIPv4 == "" {

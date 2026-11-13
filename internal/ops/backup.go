@@ -368,11 +368,8 @@ func (s *Sys) Update(ctx context.Context, id, version string) error {
 	if err != nil {
 		return err
 	}
-	if version == "" {
-		version = sharkord.LatestTested().Version
-	}
-	if _, ok := sharkord.FindTested(version); !ok {
-		return fmt.Errorf("Sharkord %s isn't on the tested list; tested: %s", version, testedList())
+	if version, err = s.Sharkord.Offered(ctx, version); err != nil {
+		return err
 	}
 	if version == inst.SharkordVersion {
 		return fmt.Errorf("%s already runs Sharkord %s", id, version)

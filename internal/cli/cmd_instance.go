@@ -124,7 +124,7 @@ func (a *App) instanceCreate() *cobra.Command {
 			r.Encrypted = !noEncrypt
 			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
 				return a.logged("instance create", r.ID, func() error {
-					if err := s.CheckCreate(&r); err != nil {
+					if err := s.CheckCreate(cmd.Context(), &r); err != nil {
 						return err
 					}
 					a.say("Creating server %s for %s (Sharkord %s)", r.ID, r.Domain, r.Version)
@@ -145,7 +145,7 @@ func (a *App) instanceCreate() *cobra.Command {
 	f.StringVar(&r.Location, "location", "", "storage location (default: the default location)")
 	f.BoolVar(&noEncrypt, "no-encrypt", false, "don't put the data folder in an encrypted container")
 	f.BoolVar(&r.SkipDNSCheck, "skip-dns-check", false, "don't check the domain points here (it points at a proxy in front of the server)")
-	f.StringVar(&r.Version, "version", "", "Sharkord version (default: the newest tested one)")
+	f.StringVar(&r.Version, "version", "", "Sharkord version (default: the newest release)")
 	_ = c.MarkFlagRequired("id")
 	_ = c.MarkFlagRequired("domain")
 	return c

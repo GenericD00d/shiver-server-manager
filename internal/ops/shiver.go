@@ -70,10 +70,7 @@ func (s *Sys) InstallShiver(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tested, isTested := sharkord.FindTested(inst.SharkordVersion)
-	if !isTested {
-		return "", fmt.Errorf("Sharkord %s isn't on the tested list, so its plugin SDK isn't known", inst.SharkordVersion)
-	}
+	tested := sharkord.FactsFor(inst.SharkordVersion)
 	rel, err := s.Shiver.Latest(ctx)
 	if err != nil {
 		return "", err
@@ -110,10 +107,7 @@ func (s *Sys) InstallPluginFile(ctx context.Context, id, file string) (plugins.M
 	if err != nil {
 		return plugins.Manifest{}, "", err
 	}
-	tested, isTested := sharkord.FindTested(inst.SharkordVersion)
-	if !isTested {
-		return plugins.Manifest{}, "", fmt.Errorf("Sharkord %s isn't on the tested list, so its plugin SDK isn't known", inst.SharkordVersion)
-	}
+	tested := sharkord.FactsFor(inst.SharkordVersion)
 	staging, err := s.stagingDir(id, "plugin")
 	if err != nil {
 		return plugins.Manifest{}, "", err

@@ -362,7 +362,7 @@ func (a *App) instanceUpdate() *cobra.Command {
 	var version string
 	c := &cobra.Command{
 		Use:   "update <id>",
-		Short: "Update a server to a newer tested Sharkord version",
+		Short: "Update a server to a newer Sharkord release",
 		Long:  "Backs up the server, switches it to the new version and restarts it. If it doesn't answer within 90 seconds, it goes back to the old version with the database from that backup.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -376,7 +376,7 @@ func (a *App) instanceUpdate() *cobra.Command {
 			})
 		},
 	}
-	c.Flags().StringVar(&version, "version", "", "Sharkord version (default: the newest tested one)")
+	c.Flags().StringVar(&version, "version", "", "Sharkord version (default: the newest release)")
 	return c
 }
 

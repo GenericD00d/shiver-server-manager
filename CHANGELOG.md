@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Every published Sharkord release is offered, not only the ones on the manager's tested list, so a new Sharkord shows up without a manager update. Create, update and import use the newest by default, and the health check says when one is out. Sharkord 0.0.31 is checked and added to the tested list.
+
 ### Security
 
 - Restores, plugin installs and backups work in a server's data folder only through `os.Root`, which never follows a link out of it, and unpack into staging folders the server's own user can't write.

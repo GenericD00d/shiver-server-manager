@@ -20,8 +20,10 @@ The four Shiver repos, and the contracts between them, are in
   plugins' release names have to match it.
 - `internal/plugins/shiver.go` installs the companion plugin from Shiver's releases
   (`shiver-plugin-<version>.zip` and `SHA256SUMS.txt`).
-- `internal/sharkord/tested.go` lists the tested Sharkord versions and their plugin SDK. It moves
-  with Shiver's `SHARKORD_REF`.
+- The manager offers every published Sharkord release (`Client.Offered` in
+  `internal/sharkord/releases.go`). `internal/sharkord/tested.go` lists the versions checked by hand
+  and their facts (plugin SDK, database switches); a newer release takes the newest entry's facts
+  (`FactsFor`). It moves with Shiver's `SHARKORD_REF`.
 
 ## Commands
 
@@ -99,7 +101,8 @@ SECURITY.md explains why each one matters.
   `TestEveryWebActionIsARealCommand` checks it is a real command.
 - **A new file or setting on the system**: add it to "What the manager changes on the system" in
   `docs/admin-guide.md`.
-- **A new tested Sharkord version**: `internal/sharkord/tested.go` and `docs/tested-versions.md`.
+- **A Sharkord version checked by hand, or one whose facts change**: `internal/sharkord/tested.go`
+  and `docs/tested-versions.md`.
 - **Root touching a server's data folder**: follow the data-folder rule above, and add a test that
   plants a link.
 - **`plugins.json`, or a plugin's release names**: change both sides in the same release.

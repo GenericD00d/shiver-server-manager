@@ -93,7 +93,7 @@ That puts a root-level control panel on the internet behind your OS password, so
 | Start, Stop, Restart | One server or all. A server you stop stays stopped: repair and the health check leave it alone. |
 | Change settings | Sharkord's environment settings (bitrate, origins, proxies, single sign-on...). The server restarts; if it doesn't come back, the old settings are put back. Community settings (name, roles, channels, invites) stay in Sharkord's own admin screens. |
 | Show logs | The service's journal and Sharkord's `error.log`. |
-| Update Sharkord | Backs up, switches to the new tested version and restarts; if it doesn't answer within 90 seconds, goes back with the database from that backup. |
+| Update Sharkord | Backs up, switches to the newest Sharkord release (or the one given) and restarts; if it doesn't answer within 90 seconds, goes back with the database from that backup. |
 | Back up now / Restore a backup | See "Backups" below. |
 | Change domain | Sets up the new domain and certificate first, then retires the old one. Members need the new address. |
 | Limit memory and CPU | Caps one server so it can't slow the others. |
