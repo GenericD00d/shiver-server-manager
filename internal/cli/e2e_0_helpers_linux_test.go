@@ -15,6 +15,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,9 +52,24 @@ func newE2E(t *testing.T) *e2e {
 	return e
 }
 
+// e2eSharkord is the Sharkord release the end-to-end tests create and import
+// servers on. Not the newest: Sharkord 0.0.31 doesn't exit on SIGTERM, so every
+// stop waits out systemd's 90 seconds and the suite runs past its timeout
+// (docs/decisions.md, 2026-11-14). Move it on once a release stops cleanly.
+const e2eSharkord = "0.0.30"
+
+// pinned adds --version e2eSharkord to a create or import that doesn't name one.
+func pinned(args []string) []string {
+	creates := len(args) > 0 && args[0] == "import" || len(args) > 1 && args[0] == "instance" && args[1] == "create"
+	if !creates || slices.Contains(args, "--version") {
+		return args
+	}
+	return append(append([]string{}, args...), "--version", e2eSharkord)
+}
+
 func (e *e2e) run(t *testing.T, sudoUser, stdin string, args ...string) (int, string, string) {
 	t.Helper()
-	cmd := exec.Command(e.bin, args...)
+	cmd := exec.Command(e.bin, pinned(args)...)
 	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin"}
 	if sudoUser != "" {
 		cmd.Env = append(cmd.Env, "SUDO_USER="+sudoUser)

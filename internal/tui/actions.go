@@ -12,6 +12,7 @@ import (
 	"charm.land/huh/v2"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/help"
+	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/validate"
 )
 
@@ -112,6 +113,32 @@ func positive(s string) error {
 	return nil
 }
 
+// pickVersion asks which Sharkord release to run, newest first and chosen by
+// default, offering only those newer than newerThan when it is set. With
+// nothing to choose it asks nothing, and the manager's default applies.
+func pickVersion(snap Snapshot, newerThan string) ([]string, bool, error) {
+	var opts []huh.Option[string]
+	for _, v := range snap.Versions {
+		if newerThan != "" && sharkord.CompareVersions(v, newerThan) <= 0 {
+			continue
+		}
+		label := v
+		if len(opts) == 0 {
+			label += " (newest)"
+		}
+		opts = append(opts, huh.NewOption(label, v))
+	}
+	if len(opts) == 0 {
+		return nil, true, nil
+	}
+	version := opts[0].Value
+	ok, err := run(huh.NewSelect[string]().Title("Sharkord version").Options(opts...).Value(&version))
+	if !ok || err != nil {
+		return nil, ok, err
+	}
+	return []string{"--version", version}, true, nil
+}
+
 // serverCmd makes an action that only needs a server picked.
 func serverCmd(title, desc string, all bool, args ...string) Action {
 	return Action{Title: title, Desc: desc, Form: func(snap Snapshot) ([]string, bool, error) {
@@ -144,8 +171,12 @@ var Sections = []Section{
 				return nil, ok, err
 			}
 			args := []string{"instance", "create", "--id", id, "--domain", domain, "--tls", tls}
+			version, ok, err := pickVersion(snap, "")
+			if !ok || err != nil {
+				return nil, ok, err
+			}
 			more, ok, err := placeAndProxy(snap, tls != "selfsigned")
-			return append(args, more...), ok, err
+			return append(append(args, version...), more...), ok, err
 		}, Confirm: "Create the server (%[4]s at %[6]s)?"},
 		{Title: "Import a server", Desc: "from an export, a backup, a Sharkord data folder, or docker:<container>", Form: func(snap Snapshot) ([]string, bool, error) {
 			var src, id, domain, tls = "", "", "", "same"
@@ -165,8 +196,12 @@ var Sections = []Section{
 			if tls != "same" {
 				args = append(args, "--tls", tls)
 			}
+			version, ok, err := pickVersion(snap, "")
+			if !ok || err != nil {
+				return nil, ok, err
+			}
 			more, ok, err := placeAndProxy(snap, tls != "selfsigned")
-			return append(args, more...), ok, err
+			return append(append(args, version...), more...), ok, err
 		}},
 		{Title: "Export a server", Desc: "to an encrypted file, to move it elsewhere", Form: func(snap Snapshot) ([]string, bool, error) {
 			id, ok, err := pickServer(snap, "Export which server?", false)
@@ -201,7 +236,20 @@ var Sections = []Section{
 			return []string{"instance", "set", id, key + "=" + value}, ok, err
 		}},
 		serverCmd("Show logs", "the service's journal and Sharkord's error log", false, "instance", "logs"),
-		serverCmd("Update Sharkord", "back up, switch version, roll back if it doesn't start", false, "instance", "update"),
+		{Title: "Update Sharkord", Desc: "back up, switch version, roll back if it doesn't start", Form: func(snap Snapshot) ([]string, bool, error) {
+			id, ok, err := pickServer(snap, "Update Sharkord", false)
+			if !ok || err != nil {
+				return nil, ok, err
+			}
+			current := ""
+			for _, s := range snap.Servers {
+				if s.ID == id {
+					current = s.Version
+				}
+			}
+			version, ok, err := pickVersion(snap, current)
+			return append([]string{"instance", "update", id}, version...), ok, err
+		}},
 		serverCmd("Back up now", "an encrypted backup of a server, or all", true, "backup"),
 		{Title: "Restore a backup", Desc: "replace a server's data with a backup", Destructive: true, Reauth: true, PassYes: true,
 			Confirm: "Replace %[2]s's data with this backup? Everything since it was made is lost.",

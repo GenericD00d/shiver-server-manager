@@ -238,6 +238,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, sess *Session) {
 // reads are the read-only commands the page can ask for.
 var reads = map[string][]string{
 	"servers":         {"instance", "list"},
+	"versions":        {"instance", "versions"},
 	"certs":           {"cert", "status"},
 	"root":            {"cert", "root"},
 	"backups":         {"backup", "list"},

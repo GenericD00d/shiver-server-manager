@@ -52,7 +52,7 @@ Everything is set from the menu or its command. Each server's settings live in `
 
 ## Known limitations
 
-- Every published Sharkord release is offered, newest by default. The ones checked by hand are in [tested versions](docs/tested-versions.md); a newer one is assumed to work like the newest of those, and an update that doesn't start rolls back.
+- Every published Sharkord release is offered, newest by default; pick another when creating, importing or updating a server. Sharkord 0.0.31 doesn't stop cleanly (see [tested versions](docs/tested-versions.md)). The ones checked by hand are in [tested versions](docs/tested-versions.md); a newer one is assumed to work like the newest of those, and an update that doesn't start rolls back.
 - Removing the package removes the shared unit, so servers don't start after the next reboot until it is reinstalled.
 - Arch Linux isn't supported: it no longer packages Caddy.
 - The manual checks still to do are listed under [Open items](docs/decisions.md#open-items).

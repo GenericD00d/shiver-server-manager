@@ -212,6 +212,8 @@ func TestActionsBuildFixedCommands(t *testing.T) {
 		{"id": "chat-a", "domain": "not a domain", "tls": "letsencrypt"},
 		{"id": "chat-a", "domain": "a.example.com", "tls": "plaintext"},
 		{"id": "chat-a", "domain": "a.example.com", "tls": "letsencrypt", "location": "relative/path"},
+		{"id": "chat-a", "domain": "a.example.com", "tls": "letsencrypt", "version": "--help"},
+		{"id": "chat-a", "domain": "a.example.com", "tls": "letsencrypt", "version": "0.0.31/../x"},
 	} {
 		if resp, out := h.do(t, "POST", "/api/actions/server.create", map[string]any{"params": params}, nil); resp.StatusCode != 400 {
 			t.Fatalf("%v accepted: %v", params, out)
@@ -400,5 +402,28 @@ func TestUpload(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(h.uploads); len(entries) != 1 {
 		t.Fatalf("left %v", entries)
+	}
+}
+
+func TestTheVersionPickedReachesTheCommand(t *testing.T) {
+	build := func(action string, p Params) []string {
+		c := &checker{p: p}
+		args, _ := Actions[action].Build(c)
+		if c.err != nil {
+			t.Fatalf("%s %v: %v", action, p, c.err)
+		}
+		return args
+	}
+	create := Params{"id": "chat-a", "domain": "a.example.com", "tls": "letsencrypt", "encrypt": "true"}
+	if args := strings.Join(build("server.create", create), " "); strings.Contains(args, "--version") {
+		t.Fatalf("no pick should leave the default: %s", args)
+	}
+	create["version"] = "0.0.30"
+	if args := strings.Join(build("server.create", create), " "); !strings.HasSuffix(args, "--version 0.0.30") {
+		t.Fatalf("create: %s", args)
+	}
+	update := Params{"id": "chat-a", "passphrase": "x", "version": "0.0.31"}
+	if args := strings.Join(build("server.update", update), " "); args != "instance update chat-a --version 0.0.31" {
+		t.Fatalf("update: %s", args)
 	}
 }

@@ -96,3 +96,6 @@ export type Meta = {
 };
 
 export type Job = { id: string; action: string; title: string; user: string; started: string; done: boolean; exitCode: number };
+
+/** A Sharkord release a server can run, as `instance versions` lists them: newest first. */
+export type SharkordRelease = { version: string; publishedAt: string; tested: boolean };

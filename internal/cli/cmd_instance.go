@@ -7,24 +7,57 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/ops"
+	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 	"github.com/GenericD00d/shiver-server-manager/internal/systemd"
 )
 
 func (a *App) instanceCmd() *cobra.Command {
 	c := &cobra.Command{Use: "instance", Short: "Servers: list, create, start, stop, settings, update, move, delete", Args: cobra.NoArgs}
-	c.AddCommand(a.instanceList(), a.instanceShow(), a.instanceCreate(),
+	c.AddCommand(a.instanceList(), a.instanceShow(), a.instanceCreate(), a.instanceVersions(),
 		a.instanceAction("start", "Start a server", (*ops.Sys).Start),
 		a.instanceAction("stop", "Stop a server", (*ops.Sys).Stop),
 		a.instanceAction("restart", "Restart a server", (*ops.Sys).Restart),
 		a.instanceLogs(), a.instanceSet())
 	return c
+}
+
+// instanceVersions lists the Sharkord releases create and update can use,
+// newest first; the first is the default.
+func (a *App) instanceVersions() *cobra.Command {
+	return &cobra.Command{
+		Use: "versions", Short: "List the Sharkord releases a server can run, newest first", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.withOps(state.Shared, func(s *ops.Sys) error {
+				rs, err := s.Sharkord.Releases(cmd.Context())
+				if err != nil {
+					return err
+				}
+				slices.SortFunc(rs, func(x, y sharkord.Release) int { return sharkord.CompareVersions(y.Version, x.Version) })
+				if a.Globals.JSON {
+					return json.NewEncoder(a.Out).Encode(rs)
+				}
+				for i, r := range rs {
+					note := ""
+					if i == 0 {
+						note = "  (default)"
+					}
+					if !r.Tested {
+						note += "  not yet checked by hand"
+					}
+					fmt.Fprintf(a.Out, "%s  %s%s\n", r.Version, r.PublishedAt.Format("2006-01-02"), note)
+				}
+				return nil
+			})
+		},
+	}
 }
 
 func (a *App) instanceList() *cobra.Command {

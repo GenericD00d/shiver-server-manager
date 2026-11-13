@@ -20,7 +20,7 @@ import (
 // of its output contains marker, like a crash or a lost SSH session.
 func (e *e2e) killAfter(t *testing.T, marker, stdin string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command(e.bin, append(args, "--password-stdin", "--passphrase-stdin")...)
+	cmd := exec.Command(e.bin, append(pinned(args), "--password-stdin", "--passphrase-stdin")...)
 	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "SUDO_USER=" + e.admin}
 	cmd.Stdin = strings.NewReader(e.pw + "\n" + stdin)
 	out, _ := cmd.StdoutPipe()

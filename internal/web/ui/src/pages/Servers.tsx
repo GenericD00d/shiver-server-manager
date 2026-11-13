@@ -2,7 +2,7 @@ import { CircleAlert, CircleCheck, Ellipsis, Eye, Import, Info, Plus } from 'luc
 import { useState } from 'react';
 import type { PageProps } from '../App';
 import { useActions, type ActionSpec, type Field } from '../actions';
-import { api, ApiError, type CatalogPlugin, type Health, type Notice, type PluginList, type Server } from '../api';
+import { api, ApiError, type CatalogPlugin, type Health, type Notice, type PluginList, type Server, type SharkordRelease } from '../api';
 import { fmtDate, Problem, Reload, Section, StateBadge, Table, Td, Notices } from '../common';
 import { Button } from '../components/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/dialog';
@@ -18,6 +18,39 @@ import { Input } from '../components/input';
 import { Label } from '../components/label';
 import { useData } from '../hooks';
 
+/** Compares dotted versions as the manager does (`sharkord.CompareVersions`). */
+const compareVersions = (a: string, b: string) => {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d) return d;
+  }
+  return 0;
+};
+
+/**
+ * The Sharkord version to run, newest first and chosen by default. Left out when the list
+ * couldn't be read, or there's nothing to choose, so the manager uses its own default, the newest.
+ */
+function versionField(releases: SharkordRelease[] | null, newerThan?: string): Field[] {
+  const offered = (releases ?? []).filter((r) => !newerThan || compareVersions(r.version, newerThan) > 0);
+  if (!offered.length) return [];
+  return [
+    {
+      name: 'version',
+      label: 'Sharkord version',
+      type: 'select',
+      initial: offered[0].version,
+      options: offered.map((r, i) => ({
+        value: r.version,
+        label: `${r.version}${i === 0 ? ' (newest)' : ''}${r.tested ? '' : ' — not yet checked by hand'}`
+      })),
+      help: 'Every published Sharkord release. The newest is chosen unless you pick another.'
+    }
+  ];
+}
+
 const tlsOptions = [
   { value: 'letsencrypt', label: "Let's Encrypt (trusted everywhere; needs ports 80 and 443 open)" },
   { value: 'selfsigned', label: 'Self-signed (members install a root certificate)' }
@@ -29,6 +62,7 @@ export function ServersPage({ meta }: PageProps) {
   const health = useData<Health>('health', jobsChanged);
   const pluginLists = useData<PluginList[] | null>('plugins', jobsChanged);
   const catalog = useData<CatalogPlugin[]>('catalog', jobsChanged);
+  const releases = useData<SharkordRelease[]>('versions');
   const storage = useData<{ locations: { path: string; default?: boolean }[] }>('storage', jobsChanged);
   const locations = storage.data?.locations ?? [];
   const defaultLocation = locations.find((l) => l.default)?.path ?? '';
@@ -57,6 +91,7 @@ export function ServersPage({ meta }: PageProps) {
       { name: 'id', label: 'Server ID', required: true, help: 'Lowercase letters, digits and hyphens, starting with a letter; up to 20.' },
       { name: 'domain', label: 'Domain', required: true, placeholder: 'chat.example.com' },
       { name: 'tls', label: 'Certificate', type: 'select', options: tlsOptions, initial: 'letsencrypt', required: true },
+      ...versionField(releases.data),
       ...(locations.length > 1 ? [locationField] : []),
       {
         name: 'encrypt',
@@ -83,6 +118,7 @@ export function ServersPage({ meta }: PageProps) {
         initial: 'same',
         options: [{ value: 'same', label: "The same as the export (or Let's Encrypt)" }, ...tlsOptions]
       },
+      ...versionField(releases.data),
       ...(locations.length > 1 ? [locationField] : []),
       { name: 'passphrase', label: "Export's passphrase (or the vault's, for a backup)", type: 'password' },
       { name: 'token', label: "The old server's secret token (optional)", type: 'password', help: 'An export with the token inside doesn’t need it.' },
@@ -169,7 +205,7 @@ export function ServersPage({ meta }: PageProps) {
                 </Td>
                 <Td className="text-right">
                   <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                    <ServerMenu s={s} meta={meta} onShowToken={() => setTokenFor(s.id)} />
+                    <ServerMenu s={s} meta={meta} releases={releases.data} onShowToken={() => setTokenFor(s.id)} />
                   </span>
                 </Td>
               </tr>
@@ -192,7 +228,17 @@ export function ServersPage({ meta }: PageProps) {
   );
 }
 
-function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta']; onShowToken: () => void }) {
+function ServerMenu({
+  s,
+  meta,
+  releases,
+  onShowToken
+}: {
+  s: Server;
+  meta: PageProps['meta'];
+  releases: SharkordRelease[] | null;
+  onShowToken: () => void;
+}) {
   const { run } = useActions();
   const id = { id: s.id };
   const item = (label: string, spec: Omit<ActionSpec, 'params'> & { params?: Record<string, string> }, destructive = false) => (
@@ -257,8 +303,8 @@ function ServerMenu({ s, meta, onShowToken }: { s: Server; meta: PageProps['meta
         {item('Update Sharkord', {
           action: 'server.update',
           title: `Update ${s.id}`,
-          description: 'Backs up, switches to the newest Sharkord release, and rolls back if it doesn’t start.',
-          fields: [passphrase]
+          description: 'Backs up, switches to the Sharkord release you pick (the newest by default), and rolls back if it doesn’t start.',
+          fields: [...versionField(releases, s.sharkordVersion), passphrase]
         })}
         <DropdownMenuSeparator />
         {item('Back up now', { action: 'server.backup', title: `Back up ${s.id}` })}

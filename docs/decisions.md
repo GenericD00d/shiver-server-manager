@@ -99,9 +99,23 @@ The manager offered only the versions in `internal/sharkord/tested.go`, so a new
 
 Compared with v0.0.30: `PLUGIN_SDK_VERSION` is still 2; no database migrations, data paths, `/healthz`, token or first-start changes; the plugin log lines are the same; env names only gained `SHARKORD_WEBRTC_ANNOUNCED_ADDRESS_V6` and `SHARKORD_WEBRTC_INTERNAL_ANNOUNCED_ADDRESS`; the release assets are the same. New: plugins can be uploaded from Sharkord's own settings page (`POST /plugin-upload`), which the manager doesn't use.
 
+## 2026-11-14: Pick the Sharkord version, newest by default, at the owner's request
+
+Creating, importing and updating a server each offer a list of the published Sharkord releases,
+newest first and chosen unless another is picked: a dropdown on the web page, a choice in the
+terminal menu, and `--version` on the commands (`import` gained it). `instance versions` lists
+them; the page reads it as `versions`. An update lists only releases newer than the server's own.
+
+The end-to-end tests, run on 0.0.31 for the first time, showed it doesn't exit on SIGTERM: every
+stop waits out systemd's 90 seconds and is killed. The tests now create and import on 0.0.30
+(`e2eSharkord`), since what they check is the manager; docs/tested-versions.md records the problem
+for admins.
+
 ## Open items
 
 - **Signed releases.** Packages, plugins and `plugins.json` are checked only against checksums from the same release. Signing them needs a minisign key that only the owner holds; see [RELEASING.md](../RELEASING.md#keys).
+- **Sharkord 0.0.31 doesn't stop on SIGTERM** (docs/tested-versions.md). Report it to Sharkord with
+  a reproduction, and move `e2eSharkord` on once a release stops cleanly.
 
 Manual checks still to do:
 

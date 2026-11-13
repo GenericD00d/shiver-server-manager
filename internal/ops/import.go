@@ -51,7 +51,7 @@ type ImportPlan struct {
 }
 
 // PlanImport reads the source: its Sharkord version and settings.
-func (s *Sys) PlanImport(ctx context.Context, src ImportSource) (ImportPlan, error) {
+func (s *Sys) PlanImport(ctx context.Context, src ImportSource, version string) (ImportPlan, error) {
 	var p ImportPlan
 	switch {
 	case src.Archive != "":
@@ -83,14 +83,15 @@ func (s *Sys) PlanImport(ctx context.Context, src ImportSource) (ImportPlan, err
 	default:
 		return p, errors.New("nothing to import from")
 	}
-	latest, err := s.Sharkord.Latest(ctx)
+	// the release asked for, or the newest
+	run, err := s.Sharkord.Offered(ctx, version)
 	if err != nil {
 		return p, err
 	}
-	if p.DataVersion != "" && sharkord.CompareVersions(p.DataVersion, latest) > 0 {
-		return p, fmt.Errorf("the data was last run by Sharkord %s, newer than any published release (%s); an older Sharkord can't open its database", p.DataVersion, latest)
+	if p.DataVersion != "" && sharkord.CompareVersions(p.DataVersion, run) > 0 {
+		return p, fmt.Errorf("the data was last run by Sharkord %s, newer than %s; an older Sharkord can't open its database", p.DataVersion, run)
 	}
-	p.RunVersion = latest
+	p.RunVersion = run
 	return p, nil
 }
 
