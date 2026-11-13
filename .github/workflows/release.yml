@@ -5,8 +5,9 @@ on:
   push:
     tags: ["v*"]
 
+# Read-only by default; only the publish job may write, to create the release.
 permissions:
-  contents: write
+  contents: read
 
 env:
   NFPM_VERSION: v2.48.0
@@ -27,11 +28,13 @@ jobs:
             rpmarch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
       - name: Build the web page
@@ -43,14 +46,14 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           go mod download
-          docker run --rm -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8 sh /src/packaging/build.sh "$VERSION"
+          docker run --rm -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8@sha256:2d0f2eb2a83cc09dbc2eb92fade4dbe8f709628149e81aa00aec70630406603b sh /src/packaging/build.sh "$VERSION"
           ./shiver-server-manager version
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION
           mkdir -p dist
           # Named as selfupdate.PackageName expects.
           ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p deb -t "dist/shiver-server-manager_${VERSION}_${{ matrix.arch }}.deb"
           ARCH=${{ matrix.arch }} VERSION=$VERSION nfpm package -f packaging/nfpm.yaml -p rpm -t "dist/shiver-server-manager-${VERSION}-1.${{ matrix.rpmarch }}.rpm"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: pkg-${{ matrix.arch }}
           path: dist/*
@@ -58,9 +61,13 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           path: dist
           merge-multiple: true

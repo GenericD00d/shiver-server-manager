@@ -79,6 +79,12 @@ The guide targets Ubuntu. The manager now also runs on Debian 12 and 13, Fedora 
 
 **Consequences:** AGENTS.md, ARCHITECTURE.md, SECURITY.md and RELEASING.md are new. This file was `NOTES.md`, and the guide and checklist moved under `docs/design/`. `scripts/check-docs.py` checks the structure in CI.
 
+## 2026-11-13: Pin CI's actions and build image; leave the test images current
+
+**Why:** a moved tag must not change what CI runs or what a release is built in. The distribution images in the `install-scripts` job are different: they are there to catch each distribution's current image breaking the install scripts, and that job holds no secrets.
+
+**Consequences:** every action is pinned to a commit SHA, `almalinux:8` (the release build image) by digest, and the browser tests install from a lockfile. Dependabot proposes action updates monthly. The test images stay unpinned, with a comment in `ci.yml` saying why.
+
 ## Open items
 
 - **Signed releases.** Packages, plugins and `plugins.json` are checked only against checksums from the same release. Signing them needs a minisign key that only the owner holds; see [RELEASING.md](../RELEASING.md#keys).
