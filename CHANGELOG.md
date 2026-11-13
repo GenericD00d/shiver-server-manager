@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- Restores, plugin installs and backups work in a server's data folder only through `os.Root`, which never follows a link out of it, and unpack into staging folders the server's own user can't write.
+- The web page gives the same answer for a wrong password and for a right password on an account outside `shiver-admins`.
+- Built with Go 1.27.4, which fixes a crash of the web page's HTTP server in Go 1.27.3 ([GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859)).
+
+### Changed
+
+- The docs follow the Shiver standard (`docs/standards.md`): AGENTS.md, ARCHITECTURE.md, SECURITY.md and RELEASING.md are new, `NOTES.md` is now `docs/decisions.md`, and the original guide and checklist moved to `docs/design/`. `scripts/check-docs.py` checks the structure in CI, and `scripts/check.sh` runs every local check.
+
 ## 0.3.1 (2026-11-12)
 
 - The Shiver plugins page now shows one server at a time: pick it from the list at the top to see its plugins, with install and update buttons. A server with an update has an (i) in the list, and the "available" links on the Servers page open the page on that server.

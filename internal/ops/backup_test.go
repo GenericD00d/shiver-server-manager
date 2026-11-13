@@ -12,6 +12,41 @@ import (
 	"github.com/GenericD00d/shiver-server-manager/internal/vault"
 )
 
+// Root unpacks and swaps data through staging folders inside the instance's
+// data folder, so those must stay root's: only the folder internal-vacuum
+// writes the database copy into is given to the instance's user.
+func TestStagingFoldersStayRootOwned(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.s.Create(ctx, req("chat-a")); err != nil {
+		t.Fatal(err)
+	}
+	var given []string
+	h.s.Chown = func(p string, uid, gid int) error {
+		given = append(given, filepath.Base(p))
+		return nil
+	}
+	staging, err := h.s.stagingDir("chat-a", "restore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(staging)
+	if len(given) != 0 {
+		t.Fatalf("an unpack staging folder was given to the instance: %q", given)
+	}
+	if fi, err := os.Stat(staging); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("staging folder: %v %v", fi, err)
+	}
+	vacuum, err := h.s.vacuumDir("chat-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(vacuum)
+	if len(given) != 1 || given[0] != filepath.Base(vacuum) {
+		t.Fatalf("the vacuum folder should be the instance's, got %q", given)
+	}
+}
+
 func TestBackupAndRestore(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()

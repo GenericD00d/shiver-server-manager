@@ -37,7 +37,19 @@ type entry struct {
 // extract writes entries into dest, accepting only plain files and folders
 // with relative paths (no "..", no links). Files are owner-only, keeping
 // whether they can run.
+//
+// Every write goes through an os.Root anchored at dest, which resolves each
+// path beneath dest and refuses to follow a symlink out of it. dest sits in
+// a folder the instance's own user owns, so without this a symlink that user
+// planted there would make root, which does the unpacking, write outside the
+// folder. The staging folder is also kept root-owned (ops.stagingDir), so
+// nothing can be planted mid-unpack. TestUnpackDoesNotFollowSymlinksInDest.
 func extract(next func() (entry, bool, error), dest string) error {
+	root, err := os.OpenRoot(dest)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	var total int64
 	for {
 		e, ok, err := next()
@@ -54,10 +66,10 @@ func extract(next func() (entry, bool, error), dest string) error {
 		if clean == "." {
 			continue
 		}
-		target := filepath.Join(dest, filepath.FromSlash(clean))
+		target := filepath.FromSlash(clean)
 		switch {
 		case e.dir:
-			if err := os.MkdirAll(target, 0o700); err != nil {
+			if err := root.MkdirAll(target, 0o700); err != nil {
 				return err
 			}
 			continue
@@ -68,8 +80,10 @@ func extract(next func() (entry, bool, error), dest string) error {
 		if total > MaxUnpacked {
 			return fmt.Errorf("the plugin unpacks to more than %d MB", MaxUnpacked>>20)
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-			return err
+		if dir := filepath.FromSlash(path.Dir(clean)); dir != "." {
+			if err := root.MkdirAll(dir, 0o700); err != nil {
+				return err
+			}
 		}
 		mode := os.FileMode(0o600)
 		if e.exec {
@@ -79,7 +93,7 @@ func extract(next func() (entry, bool, error), dest string) error {
 		if err != nil {
 			return err
 		}
-		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		out, err := root.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 		if err != nil {
 			rc.Close()
 			return err

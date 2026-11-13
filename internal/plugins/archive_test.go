@@ -150,6 +150,36 @@ func TestUnpackFileRefusesUnsafeArchives(t *testing.T) {
 	}
 }
 
+// The staging folder lives inside a folder the instance's own user owns, so
+// that user can plant a symlink in it before root unpacks. A write through
+// one must stay inside the folder rather than follow it out.
+func TestUnpackDoesNotFollowSymlinksInDest(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink ownership attack is a Unix concern")
+	}
+	outside := t.TempDir()
+	marker := filepath.Join(outside, "marker")
+	if err := os.WriteFile(marker, []byte("original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dest := t.TempDir()
+	// dest/music-bot -> the attacker's target; the archive then writes
+	// music-bot/manifest.json, which must not land on outside/.
+	if err := os.Symlink(outside, filepath.Join(dest, "music-bot")); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := UnpackFile(writeFile(t, "p.tar", makeTar(t, musicBot())), dest)
+	if err == nil {
+		t.Fatal("unpack followed a planted symlink out of dest")
+	}
+	if b, _ := os.ReadFile(marker); string(b) != "original" {
+		t.Fatalf("a write escaped dest: marker is now %q", b)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "manifest.json")); err == nil {
+		t.Fatal("manifest.json was written outside dest")
+	}
+}
+
 func TestManifestValid(t *testing.T) {
 	for _, tc := range []struct {
 		id   string

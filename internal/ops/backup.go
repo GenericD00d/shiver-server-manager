@@ -22,12 +22,26 @@ import (
 )
 
 // stagingDir makes a private folder inside the instance's data folder (so
-// it's inside the container for an encrypted instance), owned by the
-// instance's user.
+// it's inside the container for an encrypted instance), owned by root, mode
+// 700. Root unpacks into it and swaps data through it, so the instance's own
+// user must not be able to change what's inside while that happens; the
+// files are given to that user as they're written (backup.Read) or once
+// they're in place (swapPlugin).
 func (s *Sys) stagingDir(id, prefix string) (string, error) {
 	inst := s.St.Instances[id]
 	dir := filepath.Join(inst.DataPath, ".ssm-"+prefix+"-"+s.Now().UTC().Format("20060102T150405.000000000"))
 	if err := os.Mkdir(dir, 0o700); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+// vacuumDir is a staging folder the instance's own user can write, for the
+// database copy that internal-vacuum makes as that user. Root only reads from
+// it, through an os.Root (backup.Write).
+func (s *Sys) vacuumDir(id string) (string, error) {
+	dir, err := s.stagingDir(id, "backup")
+	if err != nil {
 		return "", err
 	}
 	uid, gid, err := s.UserIDs(osuser.InstanceUser(id))
@@ -57,7 +71,7 @@ func (s *Sys) requireUnlocked(ctx context.Context, id string) (*state.Instance, 
 // user), then streams the archive to w. The instance keeps running.
 func (s *Sys) writeArchive(ctx context.Context, id, kind string, w io.Writer, r age.Recipient, token *string) error {
 	inst := s.St.Instances[id]
-	staging, err := s.stagingDir(id, "backup")
+	staging, err := s.vacuumDir(id)
 	if err != nil {
 		return err
 	}

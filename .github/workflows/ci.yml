@@ -11,6 +11,15 @@ env:
   NFPM_VERSION: v2.48.0
 
 jobs:
+  # docs/standards.md: the docs' files, sections, paths and links, and these workflows' own pins.
+  standard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - run: python3 scripts/check-docs.py
+
   # Unit tests, then one build for every system: the binaries are built
   # inside AlmaLinux 8 (glibc 2.28, older than any supported system's) and
   # packaged as a .deb and an .rpm.
@@ -27,12 +36,14 @@ jobs:
             rpmarch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
       - run: sudo apt-get update && sudo apt-get install -y libpam0g-dev cryptsetup dosfstools rsync
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
       - name: Build the web page
@@ -43,13 +54,16 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
+      - run: go mod verify
+      - name: Known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - run: go test -race ./...
       - name: Check the sudoers file
         run: sudo visudo -cf packaging/sudoers
       - name: Build on glibc 2.28
         run: |
           go mod download
-          docker run --rm -e TESTS=1 -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8 sh /src/packaging/build.sh 0.0.0-ci
+          docker run --rm -e TESTS=1 -v "$PWD:/src" -v "$(go env GOROOT):/goroot:ro" -v "$(go env GOMODCACHE):/gomod" almalinux:8@sha256:2d0f2eb2a83cc09dbc2eb92fade4dbe8f709628149e81aa00aec70630406603b sh /src/packaging/build.sh 0.0.0-ci
           ./shiver-server-manager version
       - name: Package
         run: |
@@ -60,7 +74,7 @@ jobs:
           dpkg-deb --info dist/*.deb
           dpkg-deb --contents dist/*.deb
           cp auth.test cli.test dist/
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: pkg-${{ matrix.arch }}
           path: dist/
@@ -79,14 +93,16 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: pkg-${{ matrix.arch }}
           path: dist
@@ -144,7 +160,7 @@ jobs:
       - name: Voice test (two browsers with fake microphones)
         run: |
           cd test/browser
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           node voice.mjs https://chat-a.example.com --insecure --expect-shiver
       - name: Web page (real login, real servers)
@@ -156,7 +172,7 @@ jobs:
           node web.mjs ssm-admin "$SSM_PAM_PASSWORD"
         env:
           SSM_PAM_PASSWORD: Ci-Only-Passw0rd
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: failure()
         with:
           name: browser-screenshots-${{ matrix.arch }}
@@ -186,10 +202,14 @@ jobs:
       matrix:
         image: ["ubuntu:24.04", "ubuntu:26.04", "debian:12", "debian:13", "fedora:43", "fedora:44", "almalinux:9", "almalinux:10", "rockylinux/rockylinux:9", "rockylinux/rockylinux:10", "opensuse/leap:16.0", "opensuse/tumbleweed"]
     runs-on: ubuntu-24.04
+    # Not pinned by digest, on purpose: this job exists to catch each distribution's current image
+    # breaking the install scripts. It holds no secrets.
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: pkg-amd64
           path: dist
@@ -208,11 +228,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: pkg-amd64
           path: vm
@@ -232,7 +254,7 @@ jobs:
       # The cloud images change now and then; a weekly key keeps them fresh.
       - id: week
         run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/vm/*.qcow2
           key: vm-image-${{ matrix.system }}-${{ steps.week.outputs.week }}
