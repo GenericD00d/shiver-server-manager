@@ -19,6 +19,8 @@ export function PluginsPage(_: PageProps) {
   const { run, jobsChanged } = useActions();
   const catalog = useData<CatalogPlugin[]>('catalog', jobsChanged);
   const [picked, setPicked] = useState(serverInHash);
+  // The plugins ticked for "Install selected", on the server shown.
+  const [ticked, setTicked] = useState<string[]>([]);
 
   useEffect(() => {
     const onHash = () => setPicked(serverInHash());
@@ -53,8 +55,17 @@ export function PluginsPage(_: PageProps) {
   const servers = list[0]?.servers.map((s) => s.instance) ?? [];
   const server = servers.includes(picked) ? picked : servers[0];
 
+  // What can be installed or updated on the server shown.
+  const offered = list.filter((p) => {
+    const s = p.servers.find((x) => x.instance === server);
+    return s && (!s.installed || s.update) && p.latest;
+  });
+  const selected = offered.filter((p) => ticked.includes(p.id));
+  const tick = (id: string, on: boolean) => setTicked((t) => (on ? [...t, id] : t.filter((x) => x !== id)));
+
   const pick = (id: string) => {
     setPicked(id);
+    setTicked([]);
     window.history.replaceState(null, '', `#plugins/${encodeURIComponent(id)}`);
   };
 
@@ -62,7 +73,7 @@ export function PluginsPage(_: PageProps) {
     <>
       <Section
         title={server ? `Plugins on ${server}` : 'Shiver plugins'}
-        description="Pick a server to see which Shiver plugins it has, and install or update them."
+        description="Pick a server to see which Shiver plugins it has, and install or update them: one at a time, or tick several and install them together with one restart."
         actions={
           <>
             {servers.length > 0 && (
@@ -85,6 +96,22 @@ export function PluginsPage(_: PageProps) {
                 </SelectContent>
               </Select>
             )}
+            {selected.length > 0 && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  run({
+                    action: 'plugin.add',
+                    title: `Install ${selected.length === 1 ? selected[0].name : `${selected.length} plugins`} on ${server}`,
+                    confirmLabel: 'Install',
+                    description: `Backs up ${server} once, installs or updates ${selected.map((p) => `${p.name} ${p.latest}`).join(', ')} from their latest releases (each checked against its checksum), and restarts the server once. If Sharkord can’t load one, the previous copies all come back.`,
+                    params: { id: server, plugin: selected.map((p) => p.id).join(',') }
+                  })
+                }
+              >
+                Install selected ({selected.length})
+              </Button>
+            )}
             <Reload onClick={catalog.reload} loading={catalog.loading} />
           </>
         }
@@ -101,9 +128,20 @@ export function PluginsPage(_: PageProps) {
               return (
                 <tr key={p.id}>
                   <Td>
-                    <div className="grid gap-0.5">
+                    <div className="grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-0.5">
+                      {offered.includes(p) ? (
+                        <input
+                          type="checkbox"
+                          className="accent-primary mt-0.5 size-4"
+                          aria-label={`Select ${p.name}`}
+                          checked={ticked.includes(p.id)}
+                          onChange={(e) => tick(p.id, e.target.checked)}
+                        />
+                      ) : (
+                        <span className="size-4" />
+                      )}
                       <span className="font-medium">{p.name}</span>
-                      <span className="text-muted-foreground text-xs">
+                      <span className="text-muted-foreground col-start-2 text-xs">
                         {p.description}{' '}
                         <a
                           className="inline-flex items-center gap-1 underline-offset-4 hover:underline"
@@ -114,7 +152,7 @@ export function PluginsPage(_: PageProps) {
                           {p.repo} <ExternalLink className="size-3" />
                         </a>
                       </span>
-                      {p.error && <span className="text-destructive text-xs">{p.error}</span>}
+                      {p.error && <span className="text-destructive col-start-2 text-xs">{p.error}</span>}
                     </div>
                   </Td>
                   <Td className="text-muted-foreground whitespace-nowrap">

@@ -99,9 +99,16 @@ func domainCheck(s string) error { _, err := validate.Domain(s); return err }
 
 var pluginRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
-func pluginID(s string) error {
-	if !pluginRE.MatchString(s) || strings.Contains(s, "..") {
-		return errors.New("lowercase letters, digits, dots, dashes and underscores")
+// pluginIDs checks a list of plugin IDs, separated by spaces or commas.
+func pluginIDs(s string) error {
+	ids := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == ',' })
+	if len(ids) == 0 {
+		return errors.New("at least one plugin ID")
+	}
+	for _, id := range ids {
+		if !pluginRE.MatchString(id) || strings.Contains(id, "..") {
+			return errors.New("lowercase letters, digits, dots, dashes and underscores, separated by spaces")
+		}
 	}
 	return nil
 }
@@ -310,14 +317,14 @@ var Sections = []Section{
 	}},
 	{"Shiver plugins", "the Shiver plugins on offer: install, update", []Action{
 		plain("Shiver plugins on offer", "with their latest versions and what each server has", "plugin", "catalog"),
-		{Title: "Install or update a Shiver plugin", Desc: "from its latest release", Form: func(snap Snapshot) ([]string, bool, error) {
+		{Title: "Install or update Shiver plugins", Desc: "from their latest releases, several at once", Form: func(snap Snapshot) ([]string, bool, error) {
 			id, ok, err := pickServer(snap, "On which server?", false)
 			if !ok || err != nil {
 				return nil, ok, err
 			}
 			plugin := ""
-			ok, err = run(input("Plugin ID", "as 'Shiver plugins on offer' lists it, such as shiver or temp-share", &plugin, pluginID))
-			return []string{"plugin", "add", id, plugin}, ok, err
+			ok, err = run(input("Plugin IDs", "as 'Shiver plugins on offer' lists them, separated by spaces, such as temp-share media-player", &plugin, pluginIDs))
+			return append([]string{"plugin", "add", id}, strings.FieldsFunc(plugin, func(r rune) bool { return r == ' ' || r == ',' })...), ok, err
 		}},
 		plain("Plugins on each server", "everything installed, Shiver's or not", "plugin", "list"),
 	}},

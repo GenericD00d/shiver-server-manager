@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Install several Shiver plugins at once: tick them on the Plugins page and choose Install selected, list several IDs in the terminal menu, or give `plugin add` more than one. The server is backed up and restarted once for the lot instead of once per plugin, and if Sharkord can't load one, the previous copies all go back.
+
 ## 0.3.2 (2026-11-14)
 
 ### Added

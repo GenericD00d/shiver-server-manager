@@ -59,12 +59,18 @@ func (c *checker) id(name string) string {
 // pluginRE is a plugin ID as plugins.json and manifests have them.
 var pluginRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
-func (c *checker) pluginID(name string) string {
-	v := c.raw(name)
-	if !pluginRE.MatchString(v) || strings.Contains(v, "..") {
-		return c.fail(name, "not a plugin ID")
+// pluginIDs is a comma-separated list of plugin IDs, at least one.
+func (c *checker) pluginIDs(name string) []string {
+	var out []string
+	for _, v := range strings.Split(c.raw(name), ",") {
+		v = strings.TrimSpace(v)
+		if !pluginRE.MatchString(v) || strings.Contains(v, "..") {
+			c.fail(name, "not a list of plugin IDs")
+			return nil
+		}
+		out = append(out, v)
 	}
-	return v
+	return out
 }
 
 // idOrAll accepts a server ID or "--all".
@@ -259,8 +265,8 @@ var Actions = map[string]Action{
 	"plugin.install": {Title: "Install a plugin", Build: func(c *checker) ([]string, []string) {
 		return []string{"plugin", "install", c.id("id"), c.absPath("file", true)}, nil
 	}},
-	"plugin.add": {Title: "Install a Shiver plugin", Build: func(c *checker) ([]string, []string) {
-		return []string{"plugin", "add", c.id("id"), c.pluginID("plugin")}, nil
+	"plugin.add": {Title: "Install Shiver plugins", Build: func(c *checker) ([]string, []string) {
+		return append([]string{"plugin", "add", c.id("id")}, c.pluginIDs("plugin")...), nil
 	}},
 	"shiver.install": {Title: "Install Shiver", Build: func(c *checker) ([]string, []string) { return []string{"shiver", "install", c.id("id")}, nil }},
 	"shiver.update":  {Title: "Update Shiver", Build: func(c *checker) ([]string, []string) { return []string{"shiver", "update", c.idOrAll("id")}, nil }},
