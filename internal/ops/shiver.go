@@ -133,116 +133,153 @@ func (s *Sys) Plugins(id string) ([]plugins.Manifest, error) {
 	return plugins.List(inst.DataPath), nil
 }
 
-// swapPlugin backs up, swaps the unpacked plugin in while the server is
-// stopped, switches plugins on (first plugin, tested versions only),
-// starts, and confirms Sharkord logged it as loaded; otherwise the old copy
-// goes back.
-func (s *Sys) swapPlugin(ctx context.Context, id string, inst *state.Instance, tested sharkord.TestedVersion, staging, root string, m plugins.Manifest) (string, error) {
-	current, hadOld := plugins.InstalledPlugin(inst.DataPath, m.ID)
-	name := m.Name
-	if name == "" {
-		name = m.ID
-	}
+// staged is one plugin unpacked in a staging folder, ready to swap in.
+type staged struct {
+	root string
+	m    plugins.Manifest
+}
 
+// swapPlugin swaps in one plugin; see swapPlugins.
+func (s *Sys) swapPlugin(ctx context.Context, id string, inst *state.Instance, tested sharkord.TestedVersion, staging, root string, m plugins.Manifest) (string, error) {
+	notes, err := s.swapPlugins(ctx, id, inst, tested, staging, []staged{{root, m}})
+	return strings.Join(notes, "; "), err
+}
+
+// swapPlugins backs up once, swaps every unpacked plugin in while the
+// server is stopped, switches plugins on (first install, tested versions
+// only), starts once, and confirms Sharkord logged each as loaded;
+// otherwise every previous copy goes back. One stop and start for the lot
+// matters: a stop can take 90 seconds (Sharkord 0.0.31).
+func (s *Sys) swapPlugins(ctx context.Context, id string, inst *state.Instance, tested sharkord.TestedVersion, staging string, all []staged) ([]string, error) {
 	s.emit(Event{Instance: id, Step: "backup", Status: "run"})
 	if _, err := s.Backup(ctx, id); err != nil {
-		return "", err
+		return nil, err
 	}
 	unit := systemd.Unit(id)
 	if err := s.Systemd.Stop(ctx, unit); err != nil {
-		return "", err
+		return nil, err
 	}
 	uid, gid, err := s.UserIDs(osuser.InstanceUser(id))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	pluginsDir := filepath.Join(inst.DataPath, "plugins")
 	if err := os.MkdirAll(pluginsDir, 0o700); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := s.Chown(pluginsDir, uid, gid); err != nil {
-		return "", err
+		return nil, err
 	}
-	target := filepath.Join(pluginsDir, m.ID)
-	old := filepath.Join(staging, "previous")
-	if fsutil.Exists(target) {
-		if err := os.Rename(target, old); err != nil {
-			return "", err
-		}
-	}
-	if err := os.Rename(root, target); err != nil {
-		return "", err
-	}
-	// The plugins folder belongs to the instance's user, so the walk and every
-	// chmod go through a root on the data folder, which never follows a link
-	// out of it. The plugin was unpacked without links, so a link here means
-	// the folder changed underneath: refuse it rather than act through it.
-	// The server is stopped, and s.Chown is Lchown, so ownership changes only
-	// ever touch the entries themselves.
 	data, err := os.OpenRoot(inst.DataPath)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer data.Close()
-	if err := fs.WalkDir(data.FS(), "plugins/"+m.ID, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+
+	// swapped are the plugins moved in so far, which putBack undoes.
+	type swap struct {
+		m              plugins.Manifest
+		name, target   string
+		old            string
+		hadOld         bool
+		currentVersion string
+	}
+	var swapped []swap
+	putBack := func(cause error) error {
+		_ = s.Systemd.Stop(ctx, unit)
+		msgs := []string{}
+		for _, w := range swapped {
+			_ = os.RemoveAll(w.target)
+			if fsutil.Exists(w.old) {
+				if err := os.Rename(w.old, w.target); err != nil {
+					cause = fmt.Errorf("%v; and putting the previous %s back failed: %w", cause, w.name, err)
+					continue
+				}
+			}
+			if w.hadOld {
+				msgs = append(msgs, fmt.Sprintf("the previous %s (%s) is back", w.name, w.currentVersion))
+			} else {
+				msgs = append(msgs, fmt.Sprintf("%s was removed again", w.name))
+			}
 		}
-		if d.Type()&fs.ModeSymlink != 0 {
-			return fmt.Errorf("%s is a link, which the plugin archive didn't hold", p)
+		_ = s.Systemd.Start(ctx, unit)
+		if len(msgs) == 0 {
+			return cause
 		}
-		// Owner only, keeping whether a file can run.
-		mode := os.FileMode(0o600)
-		if d.IsDir() {
-			mode = 0o700
-		} else if fi, err := d.Info(); err == nil && fi.Mode()&0o111 != 0 {
-			mode = 0o700
-		}
-		name := filepath.FromSlash(p)
-		if err := data.Chmod(name, mode); err != nil {
-			return err
-		}
-		return s.Chown(filepath.Join(inst.DataPath, name), uid, gid)
-	}); err != nil {
-		return "", err
+		return fmt.Errorf("%w; %s", cause, strings.Join(msgs, ", "))
 	}
 
-	note := ""
-	if !hadOld {
-		if tested.DBSwitches {
-			if err := s.AsInstance(ctx, uid, gid, "", "internal-enable-plugins", sharkord.DBPath(inst.DataPath), m.ID); err != nil {
-				note = fmt.Sprintf("couldn't switch plugins on (%v): in Sharkord, switch on plugins in the server settings, then %s under Settings -> Plugins", err, name)
+	notes := []string{}
+	for i, p := range all {
+		m := p.m
+		name := m.Name
+		if name == "" {
+			name = m.ID
+		}
+		current, hadOld := plugins.InstalledPlugin(inst.DataPath, m.ID)
+		w := swap{m: m, name: name, target: filepath.Join(pluginsDir, m.ID), old: filepath.Join(staging, fmt.Sprintf("previous-%d", i)), hadOld: hadOld, currentVersion: current.Version}
+		if fsutil.Exists(w.target) {
+			if err := os.Rename(w.target, w.old); err != nil {
+				return nil, putBack(err)
 			}
-		} else {
-			note = fmt.Sprintf("in Sharkord, switch on plugins in the server settings, then %s under Settings -> Plugins", name)
+		}
+		swapped = append(swapped, w)
+		if err := os.Rename(p.root, w.target); err != nil {
+			return nil, putBack(err)
+		}
+		// The plugins folder belongs to the instance's user, so the walk and every
+		// chmod go through a root on the data folder, which never follows a link
+		// out of it. The plugin was unpacked without links, so a link here means
+		// the folder changed underneath: refuse it rather than act through it.
+		// The server is stopped, and s.Chown is Lchown, so ownership changes only
+		// ever touch the entries themselves.
+		if err := fs.WalkDir(data.FS(), "plugins/"+m.ID, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.Type()&fs.ModeSymlink != 0 {
+				return fmt.Errorf("%s is a link, which the plugin archive didn't hold", p)
+			}
+			// Owner only, keeping whether a file can run.
+			mode := os.FileMode(0o600)
+			if d.IsDir() {
+				mode = 0o700
+			} else if fi, err := d.Info(); err == nil && fi.Mode()&0o111 != 0 {
+				mode = 0o700
+			}
+			name := filepath.FromSlash(p)
+			if err := data.Chmod(name, mode); err != nil {
+				return err
+			}
+			return s.Chown(filepath.Join(inst.DataPath, name), uid, gid)
+		}); err != nil {
+			return nil, putBack(err)
+		}
+
+		if !hadOld {
+			if tested.DBSwitches {
+				if err := s.AsInstance(ctx, uid, gid, "", "internal-enable-plugins", sharkord.DBPath(inst.DataPath), m.ID); err != nil {
+					notes = append(notes, fmt.Sprintf("couldn't switch plugins on (%v): in Sharkord, switch on plugins in the server settings, then %s under Settings -> Plugins", err, name))
+				}
+			} else {
+				notes = append(notes, fmt.Sprintf("in Sharkord, switch on plugins in the server settings, then %s under Settings -> Plugins", name))
+			}
 		}
 	}
 
 	since := s.Now().Add(-2 * time.Second)
-	putBack := func(cause error) error {
-		_ = s.Systemd.Stop(ctx, unit)
-		_ = os.RemoveAll(target)
-		if fsutil.Exists(old) {
-			if err := os.Rename(old, target); err != nil {
-				return fmt.Errorf("%v; and putting the previous %s back failed: %w", cause, name, err)
-			}
-		}
-		_ = s.Systemd.Start(ctx, unit)
-		if hadOld {
-			return fmt.Errorf("%w; the previous %s (%s) is back", cause, name, current.Version)
-		}
-		return fmt.Errorf("%w; %s was removed again", cause, name)
-	}
 	if err := s.Systemd.Start(ctx, unit); err != nil {
-		return "", putBack(err)
+		return nil, putBack(err)
 	}
 	if err := s.WaitHealthy(ctx, inst.HTTPPort, 90*time.Second); err != nil {
-		return "", putBack(err)
+		return nil, putBack(err)
 	}
-	if err := s.waitPluginLoaded(ctx, unit, m.ID, m.Version, since); err != nil {
-		return "", putBack(err)
+	for _, w := range swapped {
+		if err := s.waitPluginLoaded(ctx, unit, w.m.ID, w.m.Version, since); err != nil {
+			return nil, putBack(fmt.Errorf("%s: %w", w.name, err))
+		}
 	}
-	return note, nil
+	return notes, nil
 }
 
 // waitPluginLoaded reads the journal since the start for Sharkord's verdict

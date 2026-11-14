@@ -2,9 +2,11 @@ package ops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/plugins"
 	"github.com/GenericD00d/shiver-server-manager/internal/selfupdate"
@@ -62,54 +64,76 @@ func (s *Sys) PluginCatalog(ctx context.Context) ([]CatalogPlugin, error) {
 	return out, nil
 }
 
-// InstallFromCatalog installs or updates a plugin from plugins.json on one
-// server: download its latest release and check its checksum, then the
-// same steps as a plugin from a file (back up, swap in while stopped, put
-// the previous copy back if Sharkord can't load it).
-func (s *Sys) InstallFromCatalog(ctx context.Context, id, pluginID string) (plugins.Manifest, string, error) {
+// InstallFromCatalog installs or updates plugins from plugins.json on one
+// server: download each one's latest release and check its checksum, then
+// the same steps as a plugin from a file, once for the lot (back up, swap
+// in while stopped, put the previous copies back if Sharkord can't load
+// one). Plugins already at their latest are skipped; it's an error only
+// when nothing is left to install.
+func (s *Sys) InstallFromCatalog(ctx context.Context, id string, pluginIDs ...string) ([]plugins.Manifest, []string, error) {
 	inst, err := s.requireUnlocked(ctx, id)
 	if err != nil {
-		return plugins.Manifest{}, "", err
+		return nil, nil, err
 	}
 	tested := sharkord.FactsFor(inst.SharkordVersion)
 	cat, err := s.Catalog.Catalog(ctx)
 	if err != nil {
-		return plugins.Manifest{}, "", err
-	}
-	e, ok := cat.Find(pluginID)
-	if !ok {
-		return plugins.Manifest{}, "", fmt.Errorf("there's no Shiver plugin called %q in the plugin list", pluginID)
-	}
-	rel, err := s.Catalog.Latest(ctx, e)
-	if err != nil {
-		return plugins.Manifest{}, "", err
-	}
-	if m, ok := plugins.InstalledPlugin(inst.DataPath, e.ID); ok && !selfupdate.Newer(rel.Version, m.Version) {
-		return m, "", fmt.Errorf("%s already has %s %s, the latest", id, e.Name, m.Version)
+		return nil, nil, err
 	}
 	staging, err := s.stagingDir(id, "plugin")
 	if err != nil {
-		return plugins.Manifest{}, "", err
+		return nil, nil, err
 	}
 	defer os.RemoveAll(staging)
-	archive := filepath.Join(staging, "download")
-	if err := s.Catalog.Download(ctx, rel, archive); err != nil {
-		return plugins.Manifest{}, "", err
+	var all []staged
+	var ms []plugins.Manifest
+	var current []string
+	seen := map[string]bool{}
+	for i, pluginID := range pluginIDs {
+		if seen[pluginID] {
+			continue
+		}
+		seen[pluginID] = true
+		e, ok := cat.Find(pluginID)
+		if !ok {
+			return nil, nil, fmt.Errorf("there's no Shiver plugin called %q in the plugin list", pluginID)
+		}
+		rel, err := s.Catalog.Latest(ctx, e)
+		if err != nil {
+			return nil, nil, err
+		}
+		if m, ok := plugins.InstalledPlugin(inst.DataPath, e.ID); ok && !selfupdate.Newer(rel.Version, m.Version) {
+			current = append(current, fmt.Sprintf("%s already has %s %s, the latest", id, e.Name, m.Version))
+			continue
+		}
+		dir := filepath.Join(staging, fmt.Sprint(i))
+		unpacked := filepath.Join(dir, "unpacked")
+		if err := os.MkdirAll(unpacked, 0o700); err != nil {
+			return nil, nil, err
+		}
+		archive := filepath.Join(dir, "download")
+		if err := s.Catalog.Download(ctx, rel, archive); err != nil {
+			return nil, nil, err
+		}
+		root, m, err := plugins.UnpackFile(archive, unpacked)
+		if err != nil {
+			return nil, nil, err
+		}
+		if m.ID != e.ID {
+			return nil, nil, fmt.Errorf("%s's release holds the plugin %q, not %q", e.Name, m.ID, e.ID)
+		}
+		if err := m.Valid(tested.PluginSDK); err != nil {
+			return nil, nil, err
+		}
+		all = append(all, staged{root, m})
+		ms = append(ms, m)
 	}
-	unpacked := filepath.Join(staging, "unpacked")
-	if err := os.Mkdir(unpacked, 0o700); err != nil {
-		return plugins.Manifest{}, "", err
+	if len(all) == 0 {
+		if len(current) == 0 {
+			return nil, nil, fmt.Errorf("no plugins given")
+		}
+		return nil, nil, errors.New(strings.Join(current, "; "))
 	}
-	root, m, err := plugins.UnpackFile(archive, unpacked)
-	if err != nil {
-		return m, "", err
-	}
-	if m.ID != e.ID {
-		return m, "", fmt.Errorf("%s's release holds the plugin %q, not %q", e.Name, m.ID, e.ID)
-	}
-	if err := m.Valid(tested.PluginSDK); err != nil {
-		return m, "", err
-	}
-	note, err := s.swapPlugin(ctx, id, inst, tested, staging, root, m)
-	return m, note, err
+	notes, err := s.swapPlugins(ctx, id, inst, tested, staging, all)
+	return ms, append(current, notes...), err
 }

@@ -137,25 +137,28 @@ func (a *App) pluginCmd() *cobra.Command {
 		},
 	}
 	add := &cobra.Command{
-		Use:   "add <id> <plugin>",
-		Short: "Install or update a Shiver plugin (see plugin catalog) on a server from its latest release",
-		Long: "Downloads the plugin's latest release and checks its checksum, then installs it like a plugin from a file: " +
-			"the server is backed up, the plugin is swapped in while it's stopped, and the previous copy goes back if Sharkord can't load it.",
-		Args: cobra.ExactArgs(2),
+		Use:   "add <id> <plugin>...",
+		Short: "Install or update Shiver plugins (see plugin catalog) on a server from their latest releases",
+		Long: "Downloads each plugin's latest release and checks its checksum, then installs them like plugins from files, all at once: " +
+			"the server is backed up and stopped once, the plugins are swapped in, and the previous copies go back if Sharkord can't load one. " +
+			"Plugins already at their latest are skipped.",
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, pluginID := args[0], args[1]
+			id, pluginIDs := args[0], args[1:]
 			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
-				return a.logged("plugin add "+pluginID, id, func() error {
-					m, note, err := s.InstallFromCatalog(cmd.Context(), id, pluginID)
+				return a.logged("plugin add "+strings.Join(pluginIDs, " "), id, func() error {
+					ms, notes, err := s.InstallFromCatalog(cmd.Context(), id, pluginIDs...)
 					if err != nil {
 						return err
 					}
-					name := m.Name
-					if name == "" {
-						name = m.ID
+					for _, m := range ms {
+						name := m.Name
+						if name == "" {
+							name = m.ID
+						}
+						a.say("✓ %s %s is running on %s.", name, m.Version, id)
 					}
-					a.say("✓ %s %s is running on %s.", name, m.Version, id)
-					if note != "" {
+					for _, note := range notes {
 						a.say("! %s", strings.TrimSpace(note))
 					}
 					return nil
