@@ -49,7 +49,7 @@ func TestEveryGuideCommandExists(t *testing.T) {
 	app := &App{}
 	root := app.newRoot()
 	for _, path := range []string{
-		"setup", "instance list", "instance show", "instance create", "instance start", "instance stop",
+		"setup", "instance list", "instance versions", "instance show", "instance create", "instance start", "instance stop",
 		"instance restart", "instance logs", "instance set", "instance update", "instance move", "instance delete",
 		"token show", "token save", "shiver status", "shiver install", "shiver update",
 		"cert status", "cert switch", "cert retry", "cert root", "backup", "restore", "export", "import",

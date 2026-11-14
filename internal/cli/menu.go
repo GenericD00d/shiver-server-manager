@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/ops"
@@ -74,7 +75,7 @@ func (h menuHost) Snapshot() (tui.Snapshot, error) {
 			if ci, err := s.CertInfo(ctx, id); err == nil && ci.Present {
 				cert = fmt.Sprintf("%d days", ci.DaysLeft)
 			}
-			snap.Servers = append(snap.Servers, tui.Server{ID: id, Running: running, Domain: info.Domain, Cert: cert, Location: info.Location})
+			snap.Servers = append(snap.Servers, tui.Server{ID: id, Running: running, Domain: info.Domain, Cert: cert, Location: info.Location, Version: info.SharkordVersion})
 			if list, err := s.Backups(id); err == nil {
 				for _, e := range list {
 					snap.Backups[id] = append(snap.Backups[id], filepath.Join(s.BackupDir(id), e.File))
@@ -85,6 +86,13 @@ func (h menuHost) Snapshot() (tui.Snapshot, error) {
 			snap.Locations = append(snap.Locations, l.Path)
 		}
 		snap.DefaultLocation = s.St.DefaultLocation()
+		// cached for an hour, so the menu doesn't ask GitHub on every refresh
+		if rs, err := s.Sharkord.Releases(ctx); err == nil {
+			for _, r := range rs {
+				snap.Versions = append(snap.Versions, r.Version)
+			}
+			slices.SortFunc(snap.Versions, func(x, y string) int { return sharkord.CompareVersions(y, x) })
+		}
 		for _, n := range ops.LoadReport(s.Paths.HealthFile).Notices {
 			if n.Level != "info" || strings.HasPrefix(n.Key, "locked") {
 				snap.Notices = append(snap.Notices, n.Message)

@@ -34,7 +34,7 @@ type CreateRequest struct {
 }
 
 // CheckCreate validates a request against the records and fills defaults.
-func (s *Sys) CheckCreate(req *CreateRequest) error {
+func (s *Sys) CheckCreate(ctx context.Context, req *CreateRequest) error {
 	if !s.Vault.Exists() {
 		return errors.New("first-time setup hasn't finished (there's no vault yet); run setup first")
 	}
@@ -64,12 +64,11 @@ func (s *Sys) CheckCreate(req *CreateRequest) error {
 	if req.TestMode && req.TLS != state.TLSLetsEncrypt {
 		return errors.New("test mode only applies to Let's Encrypt certificates")
 	}
-	if req.Version == "" {
-		req.Version = sharkord.LatestTested().Version
+	v, err := s.Sharkord.Offered(ctx, req.Version)
+	if err != nil {
+		return err
 	}
-	if _, ok := sharkord.FindTested(req.Version); !ok {
-		return fmt.Errorf("Sharkord %s isn't on the tested list; tested: %s", req.Version, testedList())
-	}
+	req.Version = v
 	if req.Location == "" {
 		req.Location = s.St.DefaultLocation()
 	}
@@ -84,21 +83,10 @@ func (s *Sys) CheckCreate(req *CreateRequest) error {
 	return s.checkRoom(req.Location, req.Encrypted, 0)
 }
 
-func testedList() string {
-	var out string
-	for i, t := range sharkord.Tested {
-		if i > 0 {
-			out += ", "
-		}
-		out += t.Version
-	}
-	return out
-}
-
 // Create adds the record with its ports reserved, then runs the create
 // steps. On a failure the record keeps the operation for Retry or repair.
 func (s *Sys) Create(ctx context.Context, req CreateRequest) error {
-	if err := s.CheckCreate(&req); err != nil {
+	if err := s.CheckCreate(ctx, &req); err != nil {
 		return err
 	}
 	if s.St.Settings.PublicIPv4 == "" {

@@ -107,6 +107,20 @@ func (c *checker) number(name string) string {
 
 func (c *checker) flag(name string) bool { return c.raw(name) == "true" }
 
+// version is an optional Sharkord version from the page's list, passed on
+// as --version; empty leaves the manager's default, the newest release.
+func (c *checker) version(name string) []string {
+	v := c.raw(name)
+	if v == "" {
+		return nil
+	}
+	if err := sharkord.ValidVersion(v); err != nil {
+		c.fail(name, err.Error())
+		return nil
+	}
+	return []string{"--version", v}
+}
+
 func (c *checker) enum(name string, options ...string) string {
 	v := c.raw(name)
 	for _, o := range options {
@@ -175,7 +189,7 @@ var Actions = map[string]Action{
 		if loc := c.absPath("location", false); loc != "" {
 			args = append(args, "--location", loc)
 		}
-		return args, nil
+		return append(args, c.version("version")...), nil
 	}},
 	"server.import": {Title: "Import a server", Build: func(c *checker) ([]string, []string) {
 		args := []string{"import", c.line("source", true), "--id", c.id("id"), "--domain", c.domain("domain")}
@@ -187,6 +201,7 @@ var Actions = map[string]Action{
 		if loc := c.absPath("location", false); loc != "" {
 			args = append(args, "--location", loc)
 		}
+		args = append(args, c.version("version")...)
 		// The archive's passphrase (or the vault's), then the old token.
 		return args, []string{c.secret("passphrase", false), c.secret("token", false)}
 	}},
@@ -204,7 +219,7 @@ var Actions = map[string]Action{
 		return []string{"instance", "set", c.id("id"), settingName(c, "key") + "=" + c.line("value", false)}, nil
 	}},
 	"server.update": {Title: "Update Sharkord", Build: func(c *checker) ([]string, []string) {
-		return []string{"instance", "update", c.id("id")}, []string{c.secret("passphrase", true)}
+		return append([]string{"instance", "update", c.id("id")}, c.version("version")...), []string{c.secret("passphrase", true)}
 	}},
 	"server.backup": {Title: "Back up", Build: func(c *checker) ([]string, []string) { return []string{"backup", c.idOrAll("id")}, nil }},
 	"backup.schedule": {Title: "Backup schedule", Build: func(c *checker) ([]string, []string) {

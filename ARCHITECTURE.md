@@ -137,7 +137,7 @@ resumed.
 1. The release is found from `plugins.json`, or from Shiver's latest release for the companion
    plugin. The archive is downloaded and checked against its release's checksums.
 2. The archive is unpacked into a root-owned staging folder through an `os.Root`, and its manifest
-   checked against the tested plugin SDK.
+   checked against the server's plugin SDK (`sharkord.FactsFor`).
 3. The server is backed up and stopped. The plugin folder is swapped in and given to the server's
    user, walking it through an `os.Root` and refusing any link. On a first install, plugins are
    switched on in Sharkord's database, as the server's own user (`internal-enable-plugins`).

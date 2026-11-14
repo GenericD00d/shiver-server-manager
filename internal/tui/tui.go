@@ -22,6 +22,8 @@ import (
 // Server is one row of the main screen.
 type Server struct {
 	ID, Status, Running, Domain, Cert, Location string
+	// Version is the Sharkord version it runs.
+	Version string
 }
 
 // Snapshot is what the main screen shows.
@@ -34,6 +36,9 @@ type Snapshot struct {
 	Locations []string
 	// DefaultLocation is where new and imported servers go.
 	DefaultLocation string
+	// Versions are the published Sharkord releases, newest first; empty when
+	// they couldn't be read, and then the manager's own default applies.
+	Versions []string
 }
 
 // Host is the manager underneath: the CLI app.

@@ -132,7 +132,7 @@ func TestExportThenImport(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := ImportSource{Archive: out, Identity: id}
-	plan, err := h.s.PlanImport(ctx, src)
+	plan, err := h.s.PlanImport(ctx, src, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,12 +171,19 @@ func TestImportFolder(t *testing.T) {
 	os.MkdirAll(filepath.Join(src, "uploads"), 0o700)
 	os.WriteFile(filepath.Join(src, "uploads", "x"), []byte("x"), 0o600)
 
-	plan, err := h.s.PlanImport(ctx, ImportSource{Folder: src})
+	plan, err := h.s.PlanImport(ctx, ImportSource{Folder: src}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plan.DataVersion != "0.0.29" || plan.RunVersion != "0.0.30" || plan.Settings["SHARKORD_ALLOWED_ORIGINS"] != "https://a.example.com" {
 		t.Fatalf("plan %+v", plan)
+	}
+	// a release picked instead of the newest; a pre-release isn't one
+	if picked, err := h.s.PlanImport(ctx, ImportSource{Folder: src}, "0.0.29"); err != nil || picked.RunVersion != "0.0.29" {
+		t.Fatalf("picked: %+v %v", picked, err)
+	}
+	if _, err := h.s.PlanImport(ctx, ImportSource{Folder: src}, "0.0.99"); err == nil {
+		t.Fatal("a pre-release was accepted")
 	}
 	asked := 0
 	r := ImportRequest{CreateRequest: CreateRequest{ID: "old", Domain: "old.example.com"}, Source: ImportSource{Folder: src}, Plan: plan}
@@ -198,7 +205,7 @@ func TestImportFolder(t *testing.T) {
 	}
 
 	os.MkdirAll(filepath.Join(src, "interface", "9.9.9"), 0o700)
-	if _, err := h.s.PlanImport(ctx, ImportSource{Folder: src}); err == nil {
+	if _, err := h.s.PlanImport(ctx, ImportSource{Folder: src}, ""); err == nil {
 		t.Fatal("data from a newer Sharkord accepted")
 	}
 }

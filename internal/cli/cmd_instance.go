@@ -7,24 +7,57 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
 	"github.com/GenericD00d/shiver-server-manager/internal/ops"
+	"github.com/GenericD00d/shiver-server-manager/internal/sharkord"
 	"github.com/GenericD00d/shiver-server-manager/internal/state"
 	"github.com/GenericD00d/shiver-server-manager/internal/systemd"
 )
 
 func (a *App) instanceCmd() *cobra.Command {
 	c := &cobra.Command{Use: "instance", Short: "Servers: list, create, start, stop, settings, update, move, delete", Args: cobra.NoArgs}
-	c.AddCommand(a.instanceList(), a.instanceShow(), a.instanceCreate(),
+	c.AddCommand(a.instanceList(), a.instanceShow(), a.instanceCreate(), a.instanceVersions(),
 		a.instanceAction("start", "Start a server", (*ops.Sys).Start),
 		a.instanceAction("stop", "Stop a server", (*ops.Sys).Stop),
 		a.instanceAction("restart", "Restart a server", (*ops.Sys).Restart),
 		a.instanceLogs(), a.instanceSet())
 	return c
+}
+
+// instanceVersions lists the Sharkord releases create and update can use,
+// newest first; the first is the default.
+func (a *App) instanceVersions() *cobra.Command {
+	return &cobra.Command{
+		Use: "versions", Short: "List the Sharkord releases a server can run, newest first", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.withOps(state.Shared, func(s *ops.Sys) error {
+				rs, err := s.Sharkord.Releases(cmd.Context())
+				if err != nil {
+					return err
+				}
+				slices.SortFunc(rs, func(x, y sharkord.Release) int { return sharkord.CompareVersions(y.Version, x.Version) })
+				if a.Globals.JSON {
+					return json.NewEncoder(a.Out).Encode(rs)
+				}
+				for i, r := range rs {
+					note := ""
+					if i == 0 {
+						note = "  (default)"
+					}
+					if !r.Tested {
+						note += "  not yet checked by hand"
+					}
+					fmt.Fprintf(a.Out, "%s  %s%s\n", r.Version, r.PublishedAt.Format("2006-01-02"), note)
+				}
+				return nil
+			})
+		},
+	}
 }
 
 func (a *App) instanceList() *cobra.Command {
@@ -124,7 +157,7 @@ func (a *App) instanceCreate() *cobra.Command {
 			r.Encrypted = !noEncrypt
 			return a.withOps(state.Exclusive, func(s *ops.Sys) error {
 				return a.logged("instance create", r.ID, func() error {
-					if err := s.CheckCreate(&r); err != nil {
+					if err := s.CheckCreate(cmd.Context(), &r); err != nil {
 						return err
 					}
 					a.say("Creating server %s for %s (Sharkord %s)", r.ID, r.Domain, r.Version)
@@ -145,7 +178,7 @@ func (a *App) instanceCreate() *cobra.Command {
 	f.StringVar(&r.Location, "location", "", "storage location (default: the default location)")
 	f.BoolVar(&noEncrypt, "no-encrypt", false, "don't put the data folder in an encrypted container")
 	f.BoolVar(&r.SkipDNSCheck, "skip-dns-check", false, "don't check the domain points here (it points at a proxy in front of the server)")
-	f.StringVar(&r.Version, "version", "", "Sharkord version (default: the newest tested one)")
+	f.StringVar(&r.Version, "version", "", "Sharkord version (default: the newest release)")
 	_ = c.MarkFlagRequired("id")
 	_ = c.MarkFlagRequired("domain")
 	return c

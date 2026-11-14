@@ -293,3 +293,49 @@ func TestSetTokenHash(t *testing.T) {
 		t.Fatal("made a database")
 	}
 }
+
+func TestOfferedIsAnyPublishedRelease(t *testing.T) {
+	c := fakeGitHub(t, nil, "")
+	ctx := context.Background()
+	if v, err := c.Offered(ctx, ""); err != nil || v != "0.0.30" {
+		t.Fatalf("default: %q %v", v, err)
+	}
+	if v, err := c.Offered(ctx, "v0.0.30"); err != nil || v != "0.0.30" {
+		t.Fatalf("named: %q %v", v, err)
+	}
+	// a pre-release, a draft and a version that doesn't exist
+	for _, v := range []string{"0.0.31", "0.0.29", "0.0.28", "../x"} {
+		if _, err := c.Offered(ctx, v); err == nil {
+			t.Errorf("%s offered", v)
+		}
+	}
+}
+
+func TestFactsCarryForward(t *testing.T) {
+	newest := LatestTested()
+	if f := FactsFor("9.9.9"); f.Version != "9.9.9" || f.PluginSDK != newest.PluginSDK || f.DBSwitches != newest.DBSwitches {
+		t.Fatalf("newer version: %+v", f)
+	}
+	if f := FactsFor("v" + Tested[0].Version); f != Tested[0] {
+		t.Fatalf("checked version: %+v", f)
+	}
+	if f := FactsFor("0.0.1"); f.PluginSDK != Tested[0].PluginSDK {
+		t.Fatalf("older version: %+v", f)
+	}
+}
+
+func TestOfferedWithoutGitHubsList(t *testing.T) {
+	c := fakeGitHub(t, nil, "")
+	c.CacheFile = ""
+	c.APIBase = "http://127.0.0.1:1" // GitHub refusing, or unreachable
+	ctx := context.Background()
+	if v, err := c.Offered(ctx, ""); err != nil || v != LatestTested().Version {
+		t.Fatalf("default: %q %v", v, err)
+	}
+	if v, err := c.Offered(ctx, "v0.0.30"); err != nil || v != "0.0.30" {
+		t.Fatalf("named: %q %v", v, err)
+	}
+	if _, err := c.Offered(ctx, "../x"); err == nil {
+		t.Fatal("a bad version was taken")
+	}
+}

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Every published Sharkord release is offered, not only the ones on the manager's tested list, so a new Sharkord shows up without a manager update. Create, update and import use the newest by default, and the health check says when one is out. Sharkord 0.0.31 is checked and added to the tested list.
+- Pick the Sharkord version when creating, importing or updating a server: a dropdown on the web page, a choice in the terminal menu, or `--version` (new on `import`). The newest is chosen unless you pick another. `instance versions` lists them.
+- Known problem: Sharkord 0.0.31 doesn't exit when stopped, so each stop, restart, update or backup on it takes 90 seconds longer and ends with a kill. Pick 0.0.30 to avoid it until Sharkord fixes it.
+
 ### Security
 
 - Restores, plugin installs and backups work in a server's data folder only through `os.Root`, which never follows a link out of it, and unpack into staging folders the server's own user can't write.
@@ -12,6 +18,7 @@
 
 - The docs follow the Shiver standard (`docs/standards.md`): AGENTS.md, ARCHITECTURE.md, SECURITY.md and RELEASING.md are new, `NOTES.md` is now `docs/decisions.md`, and the original guide and checklist moved to `docs/design/`. `scripts/check-docs.py` checks the structure in CI, and `scripts/check.sh` runs every local check.
 - The unit tests pass as root and on a nearly full disk, so only real failures show.
+- `govulncheck` runs weekly as well as on every push, in its own workflow (`.github/workflows/audit.yml`), so a new Go advisory shows up even when nothing is pushed.
 
 ## 0.3.1 (2026-11-12)
 

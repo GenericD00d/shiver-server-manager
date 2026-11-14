@@ -228,7 +228,7 @@ func (a *App) exportCmd() *cobra.Command {
 
 func (a *App) importCmd() *cobra.Command {
 	var r ops.CreateRequest
-	var tls string
+	var tls, version string
 	var noEncrypt bool
 	c := &cobra.Command{
 		Use:   "import <file|folder|docker:container>",
@@ -247,7 +247,7 @@ func (a *App) importCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				plan, err := s.PlanImport(cmd.Context(), src)
+				plan, err := s.PlanImport(cmd.Context(), src, version)
 				if err != nil {
 					return err
 				}
@@ -297,6 +297,7 @@ func (a *App) importCmd() *cobra.Command {
 	f.StringVar(&r.Domain, "domain", "", "the new server's domain")
 	f.StringVar(&r.Location, "location", "", "storage location (default: the default location)")
 	f.StringVar(&tls, "tls", "", "certificate type (default: the export's, or letsencrypt)")
+	f.StringVar(&version, "version", "", "Sharkord version to run it on (default: the newest release)")
 	f.BoolVar(&noEncrypt, "no-encrypt", false, "don't put the data folder in an encrypted container")
 	f.BoolVar(&r.SkipDNSCheck, "skip-dns-check", false, "don't check the domain points here (it points at a proxy in front of the server)")
 	_ = c.MarkFlagRequired("id")
@@ -362,7 +363,7 @@ func (a *App) instanceUpdate() *cobra.Command {
 	var version string
 	c := &cobra.Command{
 		Use:   "update <id>",
-		Short: "Update a server to a newer tested Sharkord version",
+		Short: "Update a server to a newer Sharkord release",
 		Long:  "Backs up the server, switches it to the new version and restarts it. If it doesn't answer within 90 seconds, it goes back to the old version with the database from that backup.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -376,7 +377,7 @@ func (a *App) instanceUpdate() *cobra.Command {
 			})
 		},
 	}
-	c.Flags().StringVar(&version, "version", "", "Sharkord version (default: the newest tested one)")
+	c.Flags().StringVar(&version, "version", "", "Sharkord version (default: the newest release)")
 	return c
 }
 

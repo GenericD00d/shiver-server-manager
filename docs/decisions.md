@@ -91,9 +91,34 @@ The guide targets Ubuntu. The manager now also runs on Debian 12 and 13, Fedora 
 
 **Consequences:** `backup.Read`, `backup.Write` and the plugin unpacker all go through a root on the folder they work in. Unpack staging folders stay root-owned (`stagingDir`); only the database copy's folder is the server user's (`vacuumDir`). `swapPlugin` walks and changes modes through a root, and refuses any link. Each has a test that plants a link and checks nothing outside is touched.
 
+## 2026-11-13: Offer every published Sharkord release, at the owner's request
+
+The manager offered only the versions in `internal/sharkord/tested.go`, so a new Sharkord release stayed hidden until a manager release added it. It now offers every published release (drafts and pre-releases left out), and creates, updates and imports with the newest by default. `tested.go` keeps the facts the manager relies on for the versions checked by hand; a newer release takes the newest entry's facts (`FactsFor`). A wrong guess is contained: plugin manifests are checked against the SDK, Sharkord refuses a plugin built for another, a plugin that doesn't load and an update that doesn't start both roll back, and every change is backed up first. The health check announces a new release when it runs online.
+
+## 2026-11-13: Verified against Sharkord v0.0.31 source
+
+Compared with v0.0.30: `PLUGIN_SDK_VERSION` is still 2; no database migrations, data paths, `/healthz`, token or first-start changes; the plugin log lines are the same; env names only gained `SHARKORD_WEBRTC_ANNOUNCED_ADDRESS_V6` and `SHARKORD_WEBRTC_INTERNAL_ANNOUNCED_ADDRESS`; the release assets are the same. New: plugins can be uploaded from Sharkord's own settings page (`POST /plugin-upload`), which the manager doesn't use.
+
+## 2026-11-14: Pick the Sharkord version, newest by default, at the owner's request
+
+Creating, importing and updating a server each offer a list of the published Sharkord releases,
+newest first and chosen unless another is picked: a dropdown on the web page, a choice in the
+terminal menu, and `--version` on the commands (`import` gained it). `instance versions` lists
+them; the page reads it as `versions`. An update lists only releases newer than the server's own.
+The list comes from GitHub's API, which limits unauthenticated calls per address, so when it doesn't
+answer a picked version is taken as given (the download is still checked against its release's
+`release.json`) and the default is the newest checked version (`Client.Offered`).
+
+The end-to-end tests, run on 0.0.31 for the first time, showed it doesn't exit on SIGTERM: every
+stop waits out systemd's 90 seconds and is killed. The tests now create and import on 0.0.30
+(`e2eSharkord`), since what they check is the manager; docs/tested-versions.md records the problem
+for admins.
+
 ## Open items
 
 - **Signed releases.** Packages, plugins and `plugins.json` are checked only against checksums from the same release. Signing them needs a minisign key that only the owner holds; see [RELEASING.md](../RELEASING.md#keys).
+- **Sharkord 0.0.31 doesn't stop on SIGTERM** (docs/tested-versions.md). Report it to Sharkord with
+  a reproduction, and move `e2eSharkord` on once a release stops cleanly.
 
 Manual checks still to do:
 
