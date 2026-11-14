@@ -105,6 +105,9 @@ Creating, importing and updating a server each offer a list of the published Sha
 newest first and chosen unless another is picked: a dropdown on the web page, a choice in the
 terminal menu, and `--version` on the commands (`import` gained it). `instance versions` lists
 them; the page reads it as `versions`. An update lists only releases newer than the server's own.
+The list comes from GitHub's API, which limits unauthenticated calls per address, so when it doesn't
+answer a picked version is taken as given (the download is still checked against its release's
+`release.json`) and the default is the newest checked version (`Client.Offered`).
 
 The end-to-end tests, run on 0.0.31 for the first time, showed it doesn't exit on SIGTERM: every
 stop waits out systemd's 90 seconds and is killed. The tests now create and import on 0.0.30

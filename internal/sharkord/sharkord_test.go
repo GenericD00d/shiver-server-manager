@@ -323,3 +323,19 @@ func TestFactsCarryForward(t *testing.T) {
 		t.Fatalf("older version: %+v", f)
 	}
 }
+
+func TestOfferedWithoutGitHubsList(t *testing.T) {
+	c := fakeGitHub(t, nil, "")
+	c.CacheFile = ""
+	c.APIBase = "http://127.0.0.1:1" // GitHub refusing, or unreachable
+	ctx := context.Background()
+	if v, err := c.Offered(ctx, ""); err != nil || v != LatestTested().Version {
+		t.Fatalf("default: %q %v", v, err)
+	}
+	if v, err := c.Offered(ctx, "v0.0.30"); err != nil || v != "0.0.30" {
+		t.Fatalf("named: %q %v", v, err)
+	}
+	if _, err := c.Offered(ctx, "../x"); err == nil {
+		t.Fatal("a bad version was taken")
+	}
+}

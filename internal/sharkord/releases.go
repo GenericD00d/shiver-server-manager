@@ -133,17 +133,27 @@ func (c *Client) Latest(ctx context.Context) (string, error) {
 
 // Offered returns the version to install: v when it is a published release
 // (not a draft or pre-release), or the newest one when v is empty.
+//
+// GitHub limits unauthenticated API calls per address, so the list may not
+// come. Then a version asked for is taken as given, since Install still
+// checks the download against that release's own release.json, and the
+// default is the newest checked version rather than a failure.
 func (c *Client) Offered(ctx context.Context, v string) (string, error) {
-	if v == "" {
-		return c.Latest(ctx)
-	}
 	v = strings.TrimPrefix(v, "v")
-	if err := ValidVersion(v); err != nil {
-		return "", err
+	if v != "" {
+		if err := ValidVersion(v); err != nil {
+			return "", err
+		}
 	}
 	rs, err := c.Releases(ctx)
 	if err != nil {
-		return "", err
+		if v == "" {
+			return LatestTested().Version, nil
+		}
+		return v, nil
+	}
+	if v == "" {
+		return c.Latest(ctx)
 	}
 	for _, r := range rs {
 		if r.Version == v {
